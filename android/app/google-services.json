@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "545502385286",
+    "project_id": "uirs-v4-722f2",
+    "storage_bucket": "uirs-v4-722f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:545502385286:android:83e5b883342ce05c482d07",
+        "android_client_info": {
+          "package_name": "com.rogerskie09.uirsv4"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvVQ07aeX80bEDO1F3nRiZuZ8lJGByRs0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

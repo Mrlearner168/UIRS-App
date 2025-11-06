@@ -1,0 +1,25 @@
+# Ignore build and intermediate files
+android/.cxx
+android/app/build
+android/build
+
+# Ignore node modules and cache
+node_modules
+npm-debug.log
+yarn-error.log
+clean_build.bat
+
+# Ignore git files
+.git
+.gitignore
+.gitattributes
+.expo
+yes
+
+# Ignore OS metadata
+.DS_Store
+Thumbs.db
+
+# Ignore editor folders
+.vscode
+.idea

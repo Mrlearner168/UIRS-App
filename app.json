@@ -1,7 +1,28 @@
 {
   "expo": {
-    "name": "uirs_front",
-    "slug": "uirs_front",
-    "version": "1.0.0"
+    "name": "UIRS",
+    "icon": "./assets/uirs_logo.png",
+    "slug": "uirs-v4",
+    "extra": {
+      "eas": {
+        
+        "projectId": "3563b812-437e-4671-9616-81e556bc7e2f"
+      }
+    },
+    "owner": "rogerskie09",
+    "plugins": [
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsDownloadToken": "sk.eyJ1Ijoicm9nZXJza2llMDkiLCJhIjoiY21jNHYyNmNjMDQ1ODJqc2E1eWp2MDJtdSJ9.QToWVLoAMKhJFr511jiY6A"
+        }
+      ],
+      "expo-notifications"
+    ],
+    "android": {
+      "package": "com.rogerskie09.uirsv4",
+      "icon": "./assets/uirs_logo.png",
+      "googleServicesFile": "./google-services.json"
+    }
   }
 }
