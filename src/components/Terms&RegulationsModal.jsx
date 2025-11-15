@@ -1,16 +1,18 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { CheckBox } from "react-native-elements";
 
 export default function TermsModal({ visible, onClose, onAccept }) {
   const [checked, setChecked] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <Modal animationType="slide" transparent visible={visible}>
@@ -18,22 +20,22 @@ export default function TermsModal({ visible, onClose, onAccept }) {
         <View style={styles.container}>
           <Text style={styles.title}>Terms and Regulations</Text>
             <ScrollView style={styles.scroll}>
-              <Text style={styles.content}>• Users are required to provide accurate, complete, and up-to-date information when submitting incident reports.</Text>
-              <Text style={styles.content}>• Users are solely responsible for maintaining the confidentiality of their account credentials and all activities conducted under their account.</Text>
+              <Text style={styles.content}>• {t('rule1')}</Text>
+              <Text style={styles.content}>• {t('rule2')}</Text>
 
-              <Text style={styles.content}>• Submission of false, misleading, or fraudulent information is strictly prohibited and may result in account suspension, termination, or legal action.</Text>
-              <Text style={styles.content}>• All reported data may be reviewed, verified, and shared with authorized emergency and cybersecurity response agencies to facilitate effective incident management.</Text>
+              <Text style={styles.content}>• {t('rule3')}</Text>
+              <Text style={styles.content}>• {t('rule4')}</Text>
 
-              <Text style={styles.content}>• Users must refrain from attempting to disrupt, exploit, or gain unauthorized access to the system, including uploading malicious files or harmful content.</Text>
-              <Text style={styles.content}>• Any misuse of the platform, intentional or otherwise, may result in immediate account suspension and possible legal consequences.</Text>
+              <Text style={styles.content}>•{t('rule5')}</Text>
+              <Text style={styles.content}>• {t('rule6')}</Text>
 
-              <Text style={styles.content}>• Personal data collected is processed in compliance with applicable data protection laws and is used exclusively for communication, coordination, and incident response purposes.</Text>
-              <Text style={styles.content}>• User data will not be sold, leased, or shared with unauthorized third parties under any circumstances.</Text>
+              <Text style={styles.content}>• {t('rule7')}</Text>
+              <Text style={styles.content}>• {t('rule8')}</Text>
 
-              <Text style={styles.content}>• Users are obligated to comply with all applicable national and local laws when accessing and using the system.</Text>
-              <Text style={styles.content}>• The administrators reserve the right to suspend or terminate access at their discretion in the event of violations of these terms.</Text>
+              <Text style={styles.content}>• {t('rule9')}</Text>
+              <Text style={styles.content}>• {t('rule10')}</Text>
 
-              <Text style={styles.content}>• By checking the acceptance box and proceeding, users acknowledge that they have read, understood, and agree to be bound by these Terms and Regulations.</Text>
+              <Text style={styles.content}>• {t('rule11')}</Text>
             </ScrollView>
           <View style={styles.checkboxRow}>
             <CheckBox
@@ -41,19 +43,19 @@ export default function TermsModal({ visible, onClose, onAccept }) {
               onPress={() => setChecked(!checked)}
               containerStyle={{ padding: 0, margin: 0 }}
             />
-            <Text style={styles.checkboxText}>I agree to the terms</Text>
+            <Text style={styles.checkboxText}>{t('termsagree')}</Text>
           </View>
 
           <View style={styles.buttons}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.acceptBtn, { opacity: checked ? 1 : 0.5 }]}
               onPress={() => checked && onAccept()}
               disabled={!checked}
             >
-              <Text style={styles.acceptText}>Accept</Text>
+              <Text style={styles.acceptText}>{t('acceptrequest')}</Text>
             </TouchableOpacity>
           </View>
         </View>

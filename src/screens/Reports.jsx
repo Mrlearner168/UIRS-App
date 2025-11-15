@@ -4,6 +4,8 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import * as Location from "expo-location";
 import { useCallback, useContext, useEffect, useState } from "react";
+
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   FlatList,
@@ -14,7 +16,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View, useColorScheme,
 } from "react-native";
 import EncryptedStorage from "react-native-encrypted-storage";
 import ImageViewing from "react-native-image-viewing";
@@ -33,6 +35,10 @@ const UserListReports = () => {
   const [readableAddressCache, setReadableAddressCache] = useState({});
   const [isOnline, setIsOnline] = useState(true);
   const navigation = useNavigation();
+  const {t} = useTranslation();
+  const colorScheme = useColorScheme(); // 'dark' or 'light'
+  const isDarkMode = colorScheme === 'dark';
+
   const { authData } = useContext(AuthContext);
 
   // Listen to network status
@@ -139,14 +145,19 @@ const UserListReports = () => {
     Linking.openURL(url).catch(err => console.log("Failed to open Google Maps:", err));
   };
 
+  const openImageModal = (mediaArray, index) => {
+    setSelectedMedia(mediaArray);
+    setCurrentImageIndex(index);
+    setModalVisible(true);
+  };
   const removeReport = async (reportId) => {
     Alert.alert(
       "Confirm Delete",
-      "Are you sure you want to remove this report?",
+      t('removeinfo'),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t('cancel'), style: "cancel" },
         {
-          text: "Remove",
+          text: t('remove'),
           style: "destructive",
           onPress: async () => {
             try {
@@ -159,13 +170,13 @@ const UserListReports = () => {
                 setIncidents(prev => prev.filter(r => r.id !== reportId));
                 // Fetch again to sync with backend
                 await fetchIncidents();
-                Alert.alert("Success", "Report removed successfully.");
+                Alert.alert("Success", t('reportremove'));
               } else {
                 Alert.alert("Error", response.data.message || "Failed to delete report.");
               }
             } catch (error) {
               console.error("Delete error:", error.response?.data || error.message);
-              Alert.alert("Error", "Failed to delete report.");
+              Alert.alert("Error", t('failedremove'));
             }
           },
         },
@@ -183,7 +194,7 @@ const UserListReports = () => {
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer1}>
-        <Text style={styles.heading}>Your Reports</Text>
+        <Text style={styles.heading}>{t('yourreports')}</Text>
         <Icon
           name={isOnline ? "wifi" : "wifi-off"}
           size={20}
@@ -194,34 +205,36 @@ const UserListReports = () => {
         
       <TextInput
         style={styles.searchInput}
-        placeholder="Search incidents..."
+        placeholder={t('search')}
+        placeholderTextColor={'#888'}
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
+      
 
       {!isOnline && <Text style={{ textAlign: "center", color: "red" }}>Offline mode: showing cached reports (media unavailable)</Text>}
 
       {filteredIncidents.length === 0 ? (
-        <Text style={styles.noReportsText}>No reports found</Text>
+        <Text style={styles.noReportsText}>{t('norep')}</Text>
       ) : (
         <FlatList
           data={filteredIncidents.sort((b, a) => new Date(a.created_at) - new Date(b.created_at))}
           keyExtractor={(item, index) => index.toString()}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Text>Incident Type: {item.incidentType}</Text>
+              <Text>{t('incidenttype')} {item.incidentType}</Text>
               {item.incidentType !== "Others" &&(
-                <Text>Sub-Type: {item.subType}</Text>
+                <Text>{t('subtype')}{item.subType}</Text>
               )}
               <TouchableOpacity onPress={() => openGoogleMaps(item.location)}>
                 <Text style={styles.locationText}>
-                  Location: {item.processed_location || item.readableLocation}
+                  {t('location')}{item.processed_location || item.readableLocation}
                 </Text>
               </TouchableOpacity>
               {item.incidentType === "Others" && <Text>Description: {item.incidentDescription}</Text>}
-              <Text>Time Reported: {item.incidentTime}</Text>
+              <Text>{t('time')} {item.incidentTime}</Text>
               <Text style={styles.date}>
-                Reported Date:{' '}
+                {t('datereported')}{' '}
                 {new Date(item.created_at).toLocaleDateString('en-US', {
                   month: 'long',
                   day: 'numeric',
@@ -238,7 +251,7 @@ const UserListReports = () => {
                     stationId: item.station_ids
                   })}
                 >
-                  <Text style={styles.trackButtonText}>View Details</Text>
+                  <Text style={styles.trackButtonText}>{t('viewdetails')}</Text>
                 </TouchableOpacity>
               )}
 
@@ -260,7 +273,7 @@ const UserListReports = () => {
                 <TouchableOpacity>
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident info</Text>
-                    <Text style={styles.ongoingNoticeText}>If you want to Remove this report ... Please Click</Text>
+                    <Text style={styles.ongoingNoticeText}>{t('removereport')}</Text>
                   </View>
                 </TouchableOpacity>
               )}
@@ -269,7 +282,7 @@ const UserListReports = () => {
                 <TouchableOpacity>
                   <View style={styles.doneNoticeBox}>
                     <Text style={styles.doneNoticeTitle}>Incident Done</Text>
-                    <Text style={styles.ongoingNoticeText}>This Incident is Already Done</Text>
+                    <Text style={styles.ongoingNoticeText}>{t('done')}</Text>
                   </View>
                 </TouchableOpacity>
               )}
@@ -278,7 +291,7 @@ const UserListReports = () => {
                 <TouchableOpacity>
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident Cancelled</Text>
-                    <Text style={styles.ongoingNoticeText}>You cancelled your report..</Text>
+                    <Text style={styles.ongoingNoticeText}>{t('youcancel')}</Text>
                   </View>
                 </TouchableOpacity>
               )}
@@ -286,7 +299,7 @@ const UserListReports = () => {
               {item.status === "ongoing" && (
                 <View style={styles.ongoingNoticeBox}>
                   <Text style={styles.ongoingNoticeTitle}>Incident Ongoing</Text>
-                  <Text style={styles.ongoingNoticeText}>The Responders are Ongoing. Please Wait a while ......</Text>
+                  <Text style={styles.ongoingNoticeText}>{t('reportongoing')}</Text>
                 </View>
               )}
 
@@ -295,7 +308,7 @@ const UserListReports = () => {
                   style={[styles.button, { backgroundColor: 'red', marginLeft: 10 }]}
                   onPress={() => removeReport(item.id)}
                 >
-                  <Text style={styles.buttonText}>Remove</Text>
+                  <Text style={styles.buttonText}>{t('remove')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -341,7 +354,9 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     marginRight: 10,
     paddingHorizontal: 20,
-    borderRadius: 5
+    borderRadius: 5,
+    backgroundColor: "#f0f0f0",
+    color: "#000",
   },
   card: {
     backgroundColor: "#f9f9f9",

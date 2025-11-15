@@ -2,6 +2,7 @@ import { SERVER_URL } from '@env';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Button,
@@ -25,6 +26,7 @@ const UsersData = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [token, setToken] = useState(null);
   const [isHead, setIsHead] = useState(false);
+  const {t} = useTranslation();
 
 
   // Load token once on mount
@@ -53,7 +55,7 @@ const UsersData = ({ navigation }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(res.data);
-      //console.log('Fetched users:', res.data);
+      console.log('Fetched users:', res.data);
     } catch (e) {
       console.log('Fetch users error:', e.response?.data || e.message);
     }
@@ -71,7 +73,7 @@ const UsersData = ({ navigation }) => {
       setStations([]);
     }
   };
- // console.log("Stations: ", stations);
+  //console.log("Stations: ", stations);
   // Refetch users whenever token becomes available
   useEffect(() => {
     if (token) {
@@ -82,7 +84,7 @@ const UsersData = ({ navigation }) => {
   // when selecting user:  
   useEffect(() => {
     if (selectedUser) {
-      setIsHead(selectedUser.is_head === true || selectedUser.is_head === 1);
+      setIsHead(selectedUser.is_head === true);
     }
   }, [selectedUser]);
 
@@ -109,7 +111,7 @@ const UsersData = ({ navigation }) => {
           u.id === id ? { ...u, status: newStatus } : u,
         ),
       );
-      Alert.alert('Success', `User status changed to ${newStatus}.`);
+      Alert.alert('Success', `${t('userstatuschange')} ${newStatus}.`);
       fetchUsers();
     } catch (e) {
       console.log('Toggle status error:', e.response?.data || e.message);
@@ -159,7 +161,7 @@ const UsersData = ({ navigation }) => {
 
       setSelectedUser(null);
       setSelectedStation(null);
-      Alert.alert('Success', 'User role updated successfully.');
+      Alert.alert('Success', t('changesuccess'));
       fetchUsers();
     } catch (e) {
       console.log('Update role error:', e.response?.data || e.message);
@@ -170,11 +172,11 @@ const UsersData = ({ navigation }) => {
   const deleteUser = async (userId) => {
     Alert.alert(
       'Confirm Delete',
-      'Are you sure you want to permanently delete this user and all related data?',
+      t('permanentdel'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -184,7 +186,7 @@ const UsersData = ({ navigation }) => {
               });
 
               fetchUsers(); // refresh users list
-              Alert.alert('Success', 'User and all related data deleted.');
+              Alert.alert('Success', t('deletedall'));
             } catch (e) {
               console.log('Delete user error:', e.response?.data || e.message);
             }
@@ -196,7 +198,7 @@ const UsersData = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Users Management</Text>
+      <Text style={styles.header}>{t('manageusers')}</Text>
 
       <FlatList
         data={users}
@@ -212,9 +214,9 @@ const UsersData = ({ navigation }) => {
             <Text style={styles.userName}>
               {item.firstName} {item.lastName}
             </Text>
-            <Text>Role: {item.role}</Text>
+            <Text>{t('role')} {item.role}</Text>
               {(item.role === "responder_head" || item.role === "responder_personnel" ) && (
-                <Text>Station ID: 
+                <Text>{t('stationid')}
                   {item.station_id} : {item.station_name}
                 </Text>
               )}
@@ -226,15 +228,15 @@ const UsersData = ({ navigation }) => {
               Status: {item.status}
             </Text>
             {item.is_trashed && (
-              <Text style={{ color: 'gray' }}>Trashed</Text>
+              <Text style={{ color: 'gray' }}>{t('trashed')}</Text>
             )}
-            {item.role !== 'user' && item.role !== 'responder_head' && (
+            {item.role !== 'user' && item.role !== 'responder_head' && item.role !== 'admin' && (
               <View style={styles.isHeadcontainer}>
                 <View style={styles.header}>
-                  <Text style={styles.label}>Assign Live Location Sharing? :</Text>
+                  <Text style={styles.label}>{t('assignsharing')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Switch
-                      value={item.is_head === true || item.is_head === 1}
+                      value={item.is_head === true}
                       onValueChange={async (value) => {
                         try {
                           await axios.put(
@@ -254,7 +256,7 @@ const UsersData = ({ navigation }) => {
                       }}
                     />
                     <Text style={{ marginLeft: 10 }}>
-                      {item.is_head === true || item.is_head === 1 ? 'Yes' : 'No'}
+                      {item.is_head === true ? 'Yes' : 'No'}
                     </Text>
                   </View>
                 </View>
@@ -263,33 +265,25 @@ const UsersData = ({ navigation }) => {
 
             <View style={styles.buttons}>
               <TouchableOpacity
-                style={[
-                  styles.oblongButton,
-                  { backgroundColor: item.is_trashed ? 'green' : 'crimson' },
-                ]}
+                style={[styles.oblongButton, { backgroundColor: item.is_trashed ? 'green' : 'crimson' }]}
                 onPress={() => toggleTrashUser(item.id, item.is_trashed)}
               >
                 <Text style={styles.buttonText}>
                   {item.is_trashed ? 'Untrash' : 'Trash'}
                 </Text>
               </TouchableOpacity>
-              
+
               {!item.is_trashed && (
                 <>
                   <TouchableOpacity
-                    style={[
-                      styles.oblongButton,
-                      {
-                        backgroundColor: item.status === 'active' ? 'orange' : 'gray',
-                      },
-                    ]}
+                    style={[styles.oblongButton, { backgroundColor: item.status === 'active' ? 'orange' : 'gray' }]}
                     onPress={() => toggleUserStatus(item.id, item.status)}
                   >
                     <Text style={styles.buttonText}>
                       {item.status === 'active' ? 'Deactivate' : 'Activate'}
                     </Text>
                   </TouchableOpacity>
-                  
+              
                   {userRole === 'admin' && (
                     <TouchableOpacity
                       style={[styles.oblongButton, { backgroundColor: '#0a7' }]}
@@ -298,24 +292,25 @@ const UsersData = ({ navigation }) => {
                         setNewRole(item.role);
                       }}
                     >
-                      <Text style={styles.buttonText}>Edit Role</Text>
+                      <Text style={styles.buttonText}>{t('editrole')}</Text>
                     </TouchableOpacity>
                   )}
-          
+
                   <TouchableOpacity
                     style={[styles.oblongButton, { backgroundColor: 'red' }]}
                     onPress={() => deleteUser(item.id)}
                   >
-                    <Text style={styles.buttonText}>Delete User</Text>
+                    <Text style={styles.buttonText}>{t('deluser')}</Text>
                   </TouchableOpacity>
                 </>
               )}
             </View>
+            
           </View>
         )}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 20 }}>
-            <Text>No users found</Text>
+            <Text>{t('nousersfound')}</Text>
           </View>
         }
       />
@@ -331,9 +326,9 @@ const UsersData = ({ navigation }) => {
               />
             </View>
 
-            <Text style={styles.editHeader}>Edit Role</Text>
+            <Text style={styles.editHeader}>{t('editrole')}</Text>
 
-            <Text style={styles.label}>Select Role:</Text>
+            <Text style={styles.label}>{t('selectrole')}</Text>
             <Picker
               selectedValue={newRole}
               onValueChange={(value) => setNewRole(value)}
@@ -376,7 +371,7 @@ const UsersData = ({ navigation }) => {
               style={styles.oblongButton1}
               onPress={() => updateUserRole(selectedUser)}
             >
-              <Text style={styles.oblongButtonText}>Update Role</Text>
+              <Text style={styles.oblongButtonText}>{t('updaterole')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -401,11 +396,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userName: { fontSize: 18, fontWeight: 'bold' },
-  buttons: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    marginTop: 10,
-  },
   modalOverlay: {
     position: 'absolute',
     top: 0,
@@ -461,12 +451,22 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  oblongButton: {
-    paddingHorizontal: 19,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginRight: 8,
+  buttons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',      // allows wrapping
+    justifyContent: 'space-between',
+    marginTop: 10,
   },
+  
+  oblongButton: {
+    width: '48%',           // 2 buttons per row
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 8,        // spacing between rows
+    alignItems: 'center',
+  },
+  
+
   oblongButton1: {
     backgroundColor: '#0a7',
     paddingVertical: 12,

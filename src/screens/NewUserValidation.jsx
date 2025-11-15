@@ -1,5 +1,6 @@
 import { SERVER_URL } from '@env';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   FlatList,
@@ -21,6 +22,7 @@ const NewUserValidation = ({ navigation }) => {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const {t} = useTranslation();
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -57,7 +59,7 @@ const NewUserValidation = ({ navigation }) => {
       setUsers(pendingUsers);
       console.log('Fetched new users:', pendingUsers);
     } catch (error) {
-      Alert.alert('Error', 'Failed to fetch users.');
+      Alert.alert('Error', t('failedtofetch'));
     } finally {
       setLoading(false);
     }
@@ -82,14 +84,14 @@ const NewUserValidation = ({ navigation }) => {
       });
 
       if (response.ok) {
-        Alert.alert('Success', 'User validated successfully.');
+        Alert.alert('Success', t('validatedsuccessfully'));
         fetchNewUsers();
       } else {
         const errorData = await response.json();
         Alert.alert('Error', errorData.error || 'Failed to validate user.');
       }
     } catch (error) {
-      Alert.alert('Error', 'An error occurred while validating the user.');
+      Alert.alert('Error', t('errorval'));
     }
   };
 
@@ -106,14 +108,14 @@ const NewUserValidation = ({ navigation }) => {
       });
 
       if (response.ok) {
-        Alert.alert('Declined', 'User has been declined.');
+        Alert.alert('Declined', t('userdeclined'));
         fetchNewUsers();
       } else {
         const errorData = await response.json();
         Alert.alert('Error', errorData.error || 'Failed to decline user.');
       }
     } catch (error) {
-      Alert.alert('Error', 'An error occurred while declining the user.');
+      Alert.alert('Error', t('errorwhiledec'));
     }
   };
 
@@ -132,47 +134,47 @@ const NewUserValidation = ({ navigation }) => {
 
     return (
       <View style={styles.userCard}>
-        <Text style={styles.userText}>Name: {item.firstName} {item.lastName}</Text>
-        <Text style={styles.userText}>Email: {item.email}</Text>
-        <Text style={styles.userText}>Phone: {item.phone}</Text>
+        <Text style={styles.userText}>{t('firstname')}: {item.firstName} {item.lastName}</Text>
+        <Text style={styles.userText}>{t('Email')}: {item.email}</Text>
+        <Text style={styles.userText}>{t('phone')}: {item.phone}</Text>
 
         {/* Credentials Section */}
         <View style={styles.credentialsSection}>
           <Text style={styles.credentialsTitle}>Credentials</Text>
-          <Text style={styles.userText}>ID Type: {item.id_type}</Text>
-          <Text style={styles.userText}>ID Number: {item.id_number}</Text>
+          <Text style={styles.userText}>{t('idtype')}:{item.id_type}</Text>
+          <Text style={styles.userText}>{t('idnumber')}:{item.id_number}</Text>
 
           <View style={styles.mediaContainer}>
             <View style={styles.credentialItem}>
-              <Text style={styles.credentialLabel}>ID Front:</Text>
+              <Text style={styles.credentialLabel}>{t('idcardfront')}</Text>
               {item.id_front_path ? (
                 <TouchableOpacity onPress={() => openImageViewer(images, 0)}>
                   <Image source={{ uri: item.id_front_path }} style={styles.image} />
                 </TouchableOpacity>
               ) : (
-                <Text style={styles.imagePlaceholder}>No Image</Text>
+                <Text style={styles.imagePlaceholder}>{t('noimage')}</Text>
               )}
             </View>
 
             <View style={styles.credentialItem}>
-              <Text style={styles.credentialLabel}>ID Back:</Text>
+              <Text style={styles.credentialLabel}>{t('idcardback')}</Text>
               {item.id_back_path ? (
                 <TouchableOpacity onPress={() => openImageViewer(images, 1)}>
                   <Image source={{ uri: item.id_back_path }} style={styles.image} />
                 </TouchableOpacity>
               ) : (
-                <Text style={styles.imagePlaceholder}>No Image</Text>
+                <Text style={styles.imagePlaceholder}>{t('noimage')}</Text>
               )}
             </View>
 
             <View style={styles.credentialItem}>
-              <Text style={styles.credentialLabel}>Selfie with ID:</Text>
+              <Text style={styles.credentialLabel}>{t('selfiewithid')}</Text>
               {item.selfie_path ? (
                 <TouchableOpacity onPress={() => openImageViewer(images, 2)}>
                   <Image source={{ uri: item.selfie_path }} style={styles.image} />
                 </TouchableOpacity>
               ) : (
-                <Text style={styles.imagePlaceholder}>No Image</Text>
+                <Text style={styles.imagePlaceholder}>{t('noimage')}</Text>
               )}
             </View>
           </View>
@@ -184,13 +186,13 @@ const NewUserValidation = ({ navigation }) => {
             style={[styles.actionButton, { backgroundColor: '#28a745' }]}
             onPress={() => validateUser(item.id)}
           >
-            <Text style={styles.buttonText}>Accept</Text>
+            <Text style={styles.buttonText}>{t('acceptrequest')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#dc3545' }]}
             onPress={() => declineUser(item.id)}
           >
-            <Text style={styles.buttonText}>Decline</Text>
+            <Text style={styles.buttonText}>{t('declinerequest')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -208,9 +210,9 @@ const NewUserValidation = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Pending User Verifications</Text>
+      <Text style={styles.title}>{t('pendinguserver')}</Text>
       {loading ? (
-        <Text>Loading...</Text>
+        <Text>{t('loading')}</Text>
       ) : (
         <FlatList
           data={users}
@@ -221,7 +223,7 @@ const NewUserValidation = ({ navigation }) => {
           }
           ListEmptyComponent={
             <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text>No new users found</Text>
+              <Text>{t('nousersfound')}</Text>
             </View>
           }
         />

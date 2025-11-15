@@ -1,5 +1,6 @@
 import { SERVER_URL } from '@env';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const OTPModal = ({ visible, onClose, contact, isForgotPassword }) => {
@@ -8,6 +9,7 @@ const OTPModal = ({ visible, onClose, contact, isForgotPassword }) => {
   const [verifyLoading, setVerifyLoading] = useState(true); // spinner while waiting for OTP send
   const [verifyEnabled, setVerifyEnabled] = useState(false);
   const [otpSent, setOtpSent] = useState(false); // track if OTP send succeeded
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     if (visible && contact) {
@@ -61,7 +63,7 @@ const OTPModal = ({ visible, onClose, contact, isForgotPassword }) => {
 
   const handleVerify = () => {
     if (otp.length !== 6) {
-      Alert.alert('Invalid', 'Enter 6-digit code');
+      Alert.alert('Invalid', t('invalidcode'));
       return;
     }
 
@@ -121,6 +123,7 @@ const OTPModal = ({ visible, onClose, contact, isForgotPassword }) => {
             value={otp}
             onChangeText={setOtp}
             placeholder="123456"
+            placeholderTextColor={"#888"}
           />
 
           <TouchableOpacity
@@ -148,7 +151,7 @@ const OTPModal = ({ visible, onClose, contact, isForgotPassword }) => {
           )}
 
           <TouchableOpacity onPress={handleCancel}>
-            <Text style={{ textAlign: 'center', color: 'red', marginTop: 10 }}>Cancel</Text>
+            <Text style={{ textAlign: 'center', color: 'red', marginTop: 10 }}>{t('cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -159,7 +162,7 @@ const OTPModal = ({ visible, onClose, contact, isForgotPassword }) => {
 const styles = StyleSheet.create({
   otpContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   otpModal: { width: '85%', backgroundColor: 'white', padding: 25, borderRadius: 12 },
-  input: { height: 40, borderWidth: 1, borderColor: '#ddd', borderRadius: 5, paddingHorizontal: 10, marginBottom: 15 },
+  input: { height: 40, borderWidth: 1, borderColor: '#ddd', borderRadius: 5, paddingHorizontal: 10, marginBottom: 15, color: '#000', backgroundColor: '#fff' },
   button: { backgroundColor: '#007bff', paddingVertical: 12, borderRadius: 8, marginBottom: 10 },
   buttonText: { color: 'white', fontSize: 16, textAlign: 'center', fontWeight: 'bold' },
   modaltitle: { fontSize: 18, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 20 },

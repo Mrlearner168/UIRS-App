@@ -4,6 +4,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import * as Location from "expo-location";
 import { useCallback, useContext, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Alert,
   FlatList,
@@ -34,6 +35,8 @@ const UserListReports = () => {
   const [isOnline, setIsOnline] = useState(true);
   const navigation = useNavigation();
   const { authData } = useContext(AuthContext);
+  const {t} = useTranslation();
+
 
   // Listen to network status
   useEffect(() => {
@@ -154,11 +157,11 @@ const UserListReports = () => {
   const removeReport = async (reportId) => {
     Alert.alert(
       "Confirm Delete",
-      "Are you sure you want to remove this report?",
+      t('removeinfo'),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t('cancel'), style: "cancel" },
         {
-          text: "Remove",
+          text: t('remove'),
           style: "destructive",
           onPress: async () => {
             try {
@@ -173,7 +176,7 @@ const UserListReports = () => {
                 // Fetch again to sync with backend
                 await fetchIncidents();
               
-                Alert.alert("Success", "Report removed successfully.");
+                Alert.alert("Success", t('reportremove'));
               } else {
                 Alert.alert("Error", response.data.message || "Failed to delete report.");
               }
@@ -187,8 +190,6 @@ const UserListReports = () => {
       ]
     );
   };
-  
-  
 
   const openImageModal = (mediaArray, index) => {
     setSelectedMedia(mediaArray);
@@ -204,46 +205,46 @@ const UserListReports = () => {
   );
   //console.log("filteredIncidents:" ,JSON.stringify( filteredIncidents, null , 2 ));
   
-
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>
-        Your Incident Reports{" "}
+        {t('yourreports')}{" "}
         <Icon name={isOnline ? 'wifi' : 'wifi-off'} size={20} color={isOnline ? 'green' : 'red'} />
         {isOnline ? " Online" : " Offline"}
       </Text>
 
       <TextInput
         style={styles.searchInput}
-        placeholder="Search incidents..."
+        placeholder={t('search')}
+        placeholderTextColor={"#888"}
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
       
 
-      {!isOnline && <Text style={{ textAlign: "center", color: "red" }}>Offline mode: showing cached reports (media unavailable)</Text>}
+      {!isOnline && <Text style={{ textAlign: "center", color: "red" }}>{t('offline')}(media unavailable)</Text>}
 
       {filteredIncidents.length === 0 ? (
-        <Text style={styles.noReportsText}>No reports found</Text>
+        <Text style={styles.noReportsText}>{t('norepfound')}</Text>
       ) : (
         <FlatList
           data={filteredIncidents.sort((b, a) => new Date(a.created_at) - new Date(b.created_at))}
           keyExtractor={(item, index) => index.toString()}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Text>Incident Type: {item.incidentType}</Text>
-              <Text>Sub-Type: {item.subType}</Text>
+              <Text>{t('incidenttype')}{item.incidentType}</Text>
+              <Text>{t('subtype')}{item.subType}</Text>
               <TouchableOpacity onPress={() => openGoogleMaps(item.location)}>
                 <Text style={styles.locationText}>
-                  Location: {item.processed_location || item.readableLocation}
+                  {t('location')}{item.processed_location || item.readableLocation}
                 </Text>
               </TouchableOpacity>
               {item.incidentType === "Others" &&(
-                <Text>Description: {item.incidentDescription}</Text>
+                <Text>{t('description')}{item.incidentDescription}</Text>
               )}
-              <Text>Time Reported: {item.incidentTime}</Text>
+              <Text>{t('reportedtime')} {item.incidentTime}</Text>
               <Text style={styles.date}>
-                Reported Date:{' '}
+                {t('datereported')}{' '}
                 {new Date(item.created_at).toLocaleDateString('en-US', {
                   month: 'long',
                   day: 'numeric',
@@ -260,7 +261,7 @@ const UserListReports = () => {
                     stationId: item.station_ids
                   })}
                 >
-                  <Text style={styles.trackButtonText}>View Details</Text>
+                  <Text style={styles.trackButtonText}>{t('viewdetails')}</Text>
                 </TouchableOpacity>
               )}
               
@@ -291,7 +292,7 @@ const UserListReports = () => {
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident info</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      If you want to Remove this report ... Please Click
+                      {t('removereport')}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -301,7 +302,7 @@ const UserListReports = () => {
                   <View style={styles.doneNoticeBox}>
                     <Text style={styles.doneNoticeTitle}>Incident Done</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      These Incident is Already Done
+                      {t('done')}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -311,7 +312,7 @@ const UserListReports = () => {
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident Cancelled</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      You cancelled your report..
+                      {t('youcancel')}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -320,7 +321,7 @@ const UserListReports = () => {
                 <View style={styles.ongoingNoticeBox}>
                   <Text style={styles.ongoingNoticeTitle}>Incident Ongoing</Text>
                   <Text style={styles.ongoingNoticeText}>
-                    The Responders are Ongoing. Please Wait a while ......
+                    {t('reportongoing')}
                   </Text>
                 </View>
               )}
@@ -329,7 +330,7 @@ const UserListReports = () => {
                   style={[styles.button, { backgroundColor: 'red', marginLeft: 10 }]}
                   onPress={() => removeReport(item.id)}
                 >
-                  <Text style={styles.buttonText}>Remove</Text>
+                  <Text style={styles.buttonText}>{t('remove')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -366,7 +367,9 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     marginRight: 10,
     paddingHorizontal: 20,
-    borderRadius: 5
+    borderRadius: 5,
+    backgroundColor: "#fff",
+    color: "#000",
   },
   card: {
     backgroundColor: "#f9f9f9",

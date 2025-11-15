@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
 import { useCallback, useContext, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +22,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useColorScheme
 } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
 import SendSMS from 'react-native-sms';
@@ -48,6 +50,10 @@ const ReportIncident = () => {
   const [lastLocation, setLastLocation] = useState(null);
   const [lastReadable, setLastReadable] = useState(null);
   const { stationMap } = useContext(IncidentStationMapContext);
+  const {t} = useTranslation();
+  const colorScheme = useColorScheme(); // 'dark' or 'light'
+  const isDarkMode = colorScheme === 'dark';
+
 
   // Patient info for Medical Emergency
   const [isConscious, setIsConscious] = useState(null);
@@ -125,7 +131,6 @@ const ReportIncident = () => {
     "accident": ["Rescuer", "Ambulance"],
     "aksidente": ["Rescuer", "Ambulance"],
     "bangga": ["Rescuer", "Ambulance"],
-    "trahedya": ["Rescuer", "Ambulance"],
     "disgrasya": ["Rescuer", "Ambulance"],
     "injury": ["Ambulance"],
     "samad": ["Ambulance"],
@@ -137,8 +142,6 @@ const ReportIncident = () => {
     "fracture": ["Ambulance"],
     "bleeding": ["Ambulance"],
     "cut": ["Ambulance"],
-    "road accident": ["Rescuer", "Ambulance"],
-    "vehicle crash": ["Rescuer", "Ambulance"],
 
     // Medical / Health
     "medical": ["Ambulance"],
@@ -166,6 +169,8 @@ const ReportIncident = () => {
     // Crime / Violence / Theft
     "robbery": ["PNP"],
     "kawat": ["PNP"],
+    "kawatan": ["PNP"],
+    "magnanakaw": ["PNP"],
     "sudlan balay": ["PNP"],
     "krimen": ["PNP"],
     "kapintas": ["PNP"],
@@ -208,7 +213,6 @@ const ReportIncident = () => {
     "rescue": ["Rescuer"],
     "responder": ["Rescuer"],
   };
-
   
   useEffect(() => {
     setSubType('');
@@ -552,7 +556,7 @@ const ReportIncident = () => {
       if (status !== 'granted') {
         setLocationPermissionGranted(false);
         setShowPermissionPrompt(true);
-        if (!canAskAgain) Alert.alert('Enable location permission from settings.');
+        if (!canAskAgain) Alert.alert(t('enableperset'));
         return;
       }
       setLocationPermissionGranted(true);
@@ -627,7 +631,7 @@ const ReportIncident = () => {
     const hasPermission = await requestSMSPermission();
     console.log("SMS permission granted:", hasPermission);
     if (!hasPermission) {
-      Alert.alert('Permission Denied', 'SMS permission is required to send reports.');
+      Alert.alert('Permission Denied',t('messpermission'));
       return;
     }
 
@@ -638,7 +642,7 @@ const ReportIncident = () => {
 
     console.log("Recipients filtered for SMS:", recipients);
     if (!recipients.length) {
-      Alert.alert('No SMS recipients available.');
+      Alert.alert(t('nostationsms'));
       return;
     }
 
@@ -661,7 +665,7 @@ const ReportIncident = () => {
       if (!acknowledged) {
         Alert.alert(
           'Delivery Failed',
-          'SMS could not be confirmed as sent. Please check network or retry.',
+          t('smsdeliveryfailed'),
           [{ text: 'Retry', onPress: () => retryLastReport() }]
         );
       }
@@ -683,20 +687,20 @@ const ReportIncident = () => {
         if (completed) {
           Alert.alert(
             'Success',
-            `SMS sent to ${recipients.join(', ')}`,
+            `${t('smssentto')} ${recipients.join(', ')}`,
             [{ text: 'OK', onPress: () => onRefresh() }]
           );
         } else if (cancelled) {
           Alert.alert(
             'Cancelled',
-            'SMS sending cancelled.',
+            t('smscancelled'),
             [{ text: 'OK', onPress: () => retryLastReport() }]
           );
         } else if (error && !completed && !cancelled) {
           console.log('SMS sending failed.', error);
           Alert.alert(
             'Error',
-            'Failed to send SMS. Please try again.',
+            t('smserror'),
             [{ text: 'Retry', onPress: () => retryLastReport() }]
           );
         }
@@ -709,7 +713,7 @@ const ReportIncident = () => {
     if (lastReport) {
       sendSMSReport(lastReport);
     } else {
-      Alert.alert('No previous report to retry.');
+      Alert.alert(t('noreport'));
     }
   };
   //report incident
@@ -756,8 +760,7 @@ const ReportIncident = () => {
 
         if (showAlert) {
           Alert.alert(
-            "Success",
-            "Incident report submitted successfully.",
+            "Success" , t('successrep'),
             [
               {
                 text: "Home",
@@ -792,7 +795,7 @@ const ReportIncident = () => {
         if (err.response && err.response.status === 409) {
           Alert.alert(
             "Duplicate Report",
-            "You already reported this incident. Please avoid multiple reports for the same accident."
+            t('duplicatealert'),
           );
           if (resetFields) {
             setIncidentType('');
@@ -805,7 +808,7 @@ const ReportIncident = () => {
             setPatientGender('');
           }
         } else {
-          Alert.alert("Error", "Error submitting report. Try again later.");
+          Alert.alert("Error", t('submiterror'));
         }
         if (resetFields) {
           setIncidentType('');
@@ -823,8 +826,8 @@ const ReportIncident = () => {
       await saveToQueue(reportData);
       Alert.alert(
         "Offline",
-        "You are offline or have poor network. The report has been saved and will be submitted automatically when the connection improves."
-      );
+        t('offlinequeue'),
+        );
       sendSMSReport(reportData);
       setLastReport(reportData);
     }
@@ -855,7 +858,7 @@ const ReportIncident = () => {
 
       return response.data.duplicate;
     } catch (err) {
-      console.log("Error checking duplicate incident:", err);
+      console.log(t('errorchecking'));
       return false;
     }
   };
@@ -881,11 +884,10 @@ const ReportIncident = () => {
     const isDuplicate = await checkDuplicateIncident(reportData);
     if (isDuplicate) {
       Alert.alert(
-        "Possible Duplicate Report",
-        "There seems to be an existing report of a similar incident nearby. Do you still want to submit this report?",
+        "Possible Duplicate Report" , t('duplicateincident'),
         [
-          { text: "No", style: "cancel" },
-          { text: "Yes", onPress: () => submitReport(reportData, true, true, isOnline) }
+          { text: t('no'), style: t('cancel') },
+          { text: t('yes'), onPress: () => submitReport(reportData, true, true, isOnline) }
         ]
       );
     } else {
@@ -919,7 +921,7 @@ const ReportIncident = () => {
   };
   const openCamera = async () => {
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-    if (!granted) return Alert.alert('Camera permission not granted');
+    if (!granted) return Alert.alert(t('campermission'));
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -935,22 +937,22 @@ const ReportIncident = () => {
   };
   const pickMedia = async () => {
     if (!incidentType.trim()) {
-      return Alert.alert('Error', 'Select an incident type first.');
+      return Alert.alert('Error', t('errorincident'));
     }
 
     if (!location.trim()) {
-      return Alert.alert('Error', 'Wait for your location first.');
+      return Alert.alert('Error', t('waitloc'));
     }
 
     if (incidentType !== 'Others' && !subType.trim()) {
-      return Alert.alert('Error', 'Select a sub-type for this incident.');
+      return Alert.alert('Error', t('selectsubtype'));
     }
 
     const trimmedDesc = incidentDescription.trim();
 
     if (incidentType === "Others") {
       if (!trimmedDesc) {
-        return Alert.alert("Missing Description", "Enter a valid description");
+        return Alert.alert("Missing Description", t('missingdesc'));
       }
 
       const lowerDesc = trimmedDesc.toLowerCase();
@@ -958,8 +960,7 @@ const ReportIncident = () => {
 
       if (!matchedKeywords.length) {
         return Alert.alert(
-          "No Keywords Found",
-          "Your description does not contain any recognized keywords."
+           "No Keywords Found", t('nokeywords')
         );
       }
     }
@@ -1007,13 +1008,13 @@ const ReportIncident = () => {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <Text style={styles.header}>Report Incident</Text>
+        <Text style={styles.header}>{t('reportincident')}</Text>
 
         {showPermissionPrompt ? (
           <View style={styles.permissionBox}>
-            <Text style={styles.permissionText}>Location permission is required.</Text>
+            <Text style={styles.permissionText}>{t('locationpermission')}</Text>
             <TouchableOpacity style={[styles.pickMediaButton, { backgroundColor: '#f00' }]} onPress={requestLocationPermission}>
-              <Text style={styles.buttonText}>Try Again</Text>
+              <Text style={styles.buttonText}>{t('tryagain')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -1027,82 +1028,113 @@ const ReportIncident = () => {
 
             <TextInput style={styles.input} placeholder="Location" value={location} editable={false} />
 
-            <Text style={{ fontSize: 16, marginBottom: 8 }}>Incident Type</Text>
-            <View style={[styles.pickerContainer, { marginBottom: 12 }]}>
-              <Picker selectedValue={incidentType} onValueChange={(v) => setIncidentType(v)}>
-                <Picker.Item label="Select Incident Type" value="" />
-                {incidentTypes.map((type, i) => <Picker.Item key={i} label={type} value={type} />)}
+            <Text style={{ fontSize: 16, marginBottom: 8, color: '#000' }}>{t('incidenttype')}</Text>
+            <View style={[styles.pickerContainer, { marginBottom: 12, backgroundColor: '#fff' }]}>
+              <Picker
+                selectedValue={incidentType}
+                onValueChange={(v) => setIncidentType(v)}
+                style={{ color: '#000', backgroundColor: '#fff' }} // text black, background white
+                dropdownIconColor="#000" // icon black
+              >
+                <Picker.Item label={t('selectincidenttype')} value="" />
+                {incidentTypes.map((type, i) => (
+                  <Picker.Item key={i} label={type} value={type} />
+                ))}
               </Picker>
             </View>
+              
 
             {/* Show sub-type only if type is not Other */}
             {incidentType && incidentType !== "Others" && subTypes[incidentType] && (
               <>
-                <Text style={{ fontSize: 16, marginBottom: 8 }}>{incidentType} Type</Text>
-                <View style={[styles.pickerContainer, { marginBottom: 12 }]}>
+                <Text style={{ fontSize: 16, marginBottom: 8, color: '#000' }}>{t('subtyperequiredtittle')}{incidentType}</Text>
+                <View style={[styles.pickerContainer, { marginBottom: 12, backgroundColor: '#fff' }]}>
                   <Picker
                     selectedValue={subType}
                     onValueChange={(v) => setSubType(v)}
                     enabled={incidentType !== "Others"} // disable when main type is Other
+                    style={{ color: '#000', backgroundColor: '#fff' }} // text black, background white
+                    dropdownIconColor="#000" // icon black
                   >
-                    <Picker.Item label={`Select ${incidentType} Type`} value="" />
+                    <Picker.Item label={`${t('subtyperequired')} ${incidentType}`} value="" />
                     {subTypes[incidentType].map((t, idx) => (
                       <Picker.Item key={idx} label={t} value={t} />
                     ))}
                   </Picker>
                 </View>
+                  
               </>
             )}
 
             {incidentType === "Medical Emergency" && subType && (
               <>
-                <Text style={{ fontSize: 16, marginBottom: 8 }}>Is the patient conscious?</Text>
+                <Text style={{ fontSize: 16, marginBottom: 8, color: '#000' }}>{t('iscon')}</Text>
                 <View style={{ flexDirection: "row", marginBottom: 12 }}>
                   <TouchableOpacity
                     style={[styles.pickMediaButton, { flex: 1, marginRight: 6, backgroundColor: isConscious === true ? 'green' : '#007BFF' }]}
                     onPress={() => setIsConscious(true)}
                   >
-                    <Text style={styles.buttonText}>Yes</Text>
+                    <Text style={[styles.buttonText, { color: '#fff' }]}>{t('yes')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.pickMediaButton, { flex: 1, marginLeft: 6, backgroundColor: isConscious === false ? 'red' : '#007BFF' }]}
                     onPress={() => setIsConscious(false)}
                   >
-                    <Text style={styles.buttonText}>No</Text>
+                    <Text style={[styles.buttonText, { color: '#fff' }]}>{t('no')}</Text>
                   </TouchableOpacity>
                 </View>
               </>
             )}
-
+            
             {incidentType === "Medical Emergency" && isConscious && (
               <>
-                <Text style={{ fontSize: 16, marginBottom: 8 }}>Patient Information</Text>
-                <TextInput style={styles.input} placeholder="Patient Name" value={patientName} onChangeText={setPatientName} />
-                <TextInput style={styles.input} placeholder="Patient Age" value={patientAge} onChangeText={setPatientAge} keyboardType="numeric" />
-                <View style={[styles.pickerContainer, { marginBottom: 12 }]}>
-                  <Picker selectedValue={patientGender} onValueChange={(v) => setPatientGender(v)}>
-                    <Picker.Item label="Select Gender" value="" />
-                    <Picker.Item label="Male" value="Male" />
-                    <Picker.Item label="Female" value="Female" />
+                <Text style={{ fontSize: 16, marginBottom: 8, color: '#000' }}>Patient Information</Text>
+                <TextInput 
+                  style={styles.input} 
+                  placeholder={t('patientname')} 
+                  placeholderTextColor="#888"
+                  value={patientName} 
+                  onChangeText={setPatientName} 
+                />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder={t('patientage')} 
+                  placeholderTextColor="#888"
+                  value={patientAge} 
+                  onChangeText={setPatientAge} 
+                  keyboardType="numeric" 
+                />
+                <View style={[styles.pickerContainer, { marginBottom: 12, backgroundColor: '#fff' }]}>
+                  <Picker
+                    selectedValue={patientGender}
+                    onValueChange={(v) => setPatientGender(v)}
+                    style={{ color: '#000', backgroundColor: '#fff' }}
+                    dropdownIconColor="#000"
+                  >
+                    <Picker.Item label={t('selectgender')} value="" />
+                    <Picker.Item label={t('male')} value="Male" />
+                    <Picker.Item label={t('female')} value="Female" />
                   </Picker>
                 </View>
               </>
             )}
-
+            
             {incidentType === "Others" && (
               <>
-                <Text style={{ fontSize: 16, marginBottom: 8 }}>Describe the incident</Text>
+                <Text style={{ fontSize: 16, marginBottom: 8, color: '#000' }}>{t('describe')}</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Example: Theres a violence here at my house ."
+                  style={[styles.input, { color: '#000', backgroundColor: '#fff' }]}
+                  placeholder={t('descEx')}
+                  placeholderTextColor="#888"
                   value={incidentDescription}
                   onChangeText={setIncidentDescription}
                   multiline
                 />
               </>
             )}
+            
 
-            <TextInput style={styles.input} placeholder="Time" value={incidentTime ? formatDateTime(incidentTime) : ""} editable={false} />
+            <TextInput style={styles.input} placeholder={t('time')} value={incidentTime ? formatDateTime(incidentTime) : ""} editable={false} />
 
             <ScrollView horizontal>
               {media.map((file, index) => (
@@ -1116,7 +1148,7 @@ const ReportIncident = () => {
             </ScrollView>
 
             <TouchableOpacity style={[styles.pickMediaButton, styles.buttonContainer]} onPress={pickMedia}>
-              <Text style={styles.buttonText}>Open Camera</Text>
+              <Text style={styles.buttonText}>{t('opencam')}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -1137,12 +1169,12 @@ const ReportIncident = () => {
 const styles = StyleSheet.create({
   container: { padding: 18, backgroundColor: '#fff', flex: 1 },
   header: { fontSize: 24, fontWeight: 'bold', marginBottom: 30, textAlign: 'center', marginTop: 30 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 12 },
+  input: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 12 , backgroundColor: '#fff', color: '#000' },
   mediaPreview: { width: 100, height: 100, borderRadius: 8 },
   coordinates: { fontSize: 14, color: '#555' },
   removeButton: { position: 'absolute', top: 0, right: 0, backgroundColor: 'red', borderRadius: 50, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
   removeButtonText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
-  pickerContainer: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, overflow: 'hidden' },
+  pickerContainer: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, overflow: 'hidden', color:'black' },
   pickMediaButton: { borderRadius: 15, backgroundColor: '#007BFF', padding: 12, alignItems: 'center' },
   buttonContainer: { marginBottom: 8 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },

@@ -3,6 +3,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   FlatList,
@@ -27,6 +28,7 @@ export default function UpdatesScreen() {
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isModalVisible, setModalVisible] = useState(false);
+  const { t } = useTranslation();
 
 
   // fetch token
@@ -145,11 +147,11 @@ export default function UpdatesScreen() {
       </View>
     );
   }
-  console.log("incidents: ", incidents);
+  //console.log("incidents: ", incidents);
 
   return (
     <View style={{ flex: 1 }}>
-      <Text style={styles.heading}>Updates</Text>
+      <Text style={styles.heading}>{t('updates')}</Text>
       <FlatList
         data={incidents}
         keyExtractor={(item) => item.id.toString()}
@@ -159,23 +161,25 @@ export default function UpdatesScreen() {
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text>No validated reports available.</Text>
+            <Text>{t('novalidatedinfo')}.</Text>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.title}>{item.subType}</Text>
+          <View style={[styles.card, { backgroundColor: '#fff' }]}>
+            <Text style={[styles.title, { color: '#000' }]}>{item.subType}</Text>
             {item.adminRemarks ? (
-              <Text style={styles.remarks}>
-                Incident Description: {item.adminRemarks}
+              <Text style={[styles.remarks, { color: '#000' }]}>
+                {t('description')} {item.adminRemarks}
               </Text>
             ) : null}
-            <Text style={styles.text}>
-              Location: {item.locationReadable}
+            <Text style={[styles.text, { color: '#000' }]}>
+              {t('location')} {item.locationReadable}
             </Text>
-            <Text style={styles.text}>Reported Time: {item.time}</Text>
-            <Text style={styles.date}>
-              Created at:{' '}
+            <Text style={[styles.text, { color: '#000' }]}>
+              {t('reportedtime')} {item.time}
+            </Text>
+            <Text style={[styles.date, { color: '#000' }]}>
+              {t('createdat')}{' '}
               {new Date(item.created_at).toLocaleDateString('en-US', {
                 month: 'long',
                 day: 'numeric',
@@ -210,6 +214,7 @@ export default function UpdatesScreen() {
               )}
             </View>
           </View>
+          
         )}
       />
        <ImageViewing

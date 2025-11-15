@@ -1,11 +1,13 @@
 import { SERVER_URL } from '@env';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
 
 const UpdateContactModal = ({ visible, onClose, contactType = 'email', userId, currentContact }) => {
     const [otp, setOtp] = useState('');
     const [loading, setLoading] = useState(false);
+    const {t} = useTranslation();
     //console.log("user_id",userId );
     //console.log("new contact", currentContact);
     //console.log("contact type", contactType);
@@ -57,6 +59,7 @@ const UpdateContactModal = ({ visible, onClose, contactType = 'email', userId, c
           <TextInput
             style={styles.input}
             placeholder="Enter OTP"
+            placeholderTextColor={"#888"}
             keyboardType="numeric"
             value={otp}
             onChangeText={setOtp}
@@ -65,7 +68,7 @@ const UpdateContactModal = ({ visible, onClose, contactType = 'email', userId, c
             <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'Verify OTP'}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => onClose(false)}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.cancelText}>{t('cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -77,7 +80,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
   modal: { width: '85%', backgroundColor: 'white', borderRadius: 12, padding: 25 },
   title: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 15 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, height: 40, marginBottom: 20 },
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, height: 40, marginBottom: 20, backgroundColor: '#fafafa', color: '#000' },
   button: { backgroundColor: '#007bff', paddingVertical: 12, borderRadius: 8, marginBottom: 10 },
   buttonText: { color: 'white', fontSize: 16, textAlign: 'center', fontWeight: 'bold' },
   cancelText: { color: 'red', textAlign: 'center', marginTop: 10 }

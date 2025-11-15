@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   FlatList,
@@ -39,6 +40,7 @@ const ResponderViewList = () => {
   const [incidentId, setIncidentId] = useState(null); // to store current incident ID
   const [is_head, setIsHead] = useState(false);
   const [user_idF , setUser_id] = useState(null)
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => setIsOnline(state.isConnected));
@@ -273,12 +275,13 @@ const ResponderViewList = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>
-        Incident Reports{" "}
+        {t('head')}{" "}
         <Icon name={isOnline ? "wifi" : "wifi-off"} size={20} color={isOnline ? "green" : "red"} />
       </Text>
       <TextInput
         style={styles.searchInput}
-        placeholder="Search incidents..."
+        placeholder={t('search')}
+        placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
@@ -339,21 +342,21 @@ const ResponderViewList = () => {
             <TouchableOpacity>
               <View style={styles.card}>
                 <Text style={{ fontSize: 16, marginTop: 10, marginBottom: 10 }}>
-                  Reported By: {item.reporter_name || "Unknown"}
+                 {t('reportedby')} {item.reporter_name || "Unknown"}
                 </Text>
                 <Text>
-                  Location: {item.readable_location || item.readableAddress || "Fetching..."}
+                  {t('location')}{item.readable_location || item.readableAddress || "Fetching..."}
                 </Text>
-                <Text>Incident Type: {item.incidentType}</Text>
+                <Text>{t('incidenttype')}{item.incidentType}</Text>
                 {item.incidentType !== "Others" && (
-                  <Text>Sub-Type: {item.subType || "N/A"}</Text>
+                  <Text>{t('subtype')} {item.subType || "N/A"}</Text>
                 )}
                 {item.incidentType === "Others" && (
-                <Text>Description: {item.incidentDescription}</Text>
+                <Text>{t('description')}{item.incidentDescription}</Text>
                 )}
-                <Text>Time: {item.incidentTime}</Text>
+                <Text>{t('time')} {item.incidentTime}</Text>
                 <Text style={styles.date}>
-                  Date Reported:{' '}
+                  {t('datereported')}{' '}
                   {new Date(item.created_at).toLocaleDateString('en-US', {
                     month: 'long',
                     day: 'numeric',
@@ -362,9 +365,9 @@ const ResponderViewList = () => {
                   })}
                 </Text>
                   
-                  <Text>No. of Reports: {item.report_count || 0} ({percentReports}%)</Text>
+                  <Text>{t('reportcount')} {item.report_count || 0} ({percentReports}%)</Text>
                 <Text style={styles.clickableText} onPress={() => handleDialPhone(item.contactInfo)}>
-                  Contact: {item.contactInfo}
+                  {t('contact')} {item.contactInfo}
                 </Text>
                 <View style={styles.mediaContainer}>
                   {item.media?.length ? (
@@ -382,7 +385,7 @@ const ResponderViewList = () => {
                   <View style={styles.ongoingNoticeBox}>
                     <Text style={styles.ongoingNoticeTitle}>Incident Ongoing</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      Your Station is responding to this incident. Please help.
+                      {t('ongoing')}
                     </Text>
                   </View>
                 )}
@@ -395,8 +398,7 @@ const ResponderViewList = () => {
                   <View style={styles.ongoingNoticeBox}>
                     <Text style={styles.ongoingNoticeTitle}>Incident Info</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      This Is Your Report .. Please Standby... {'\n'}
-                      Responders Are on there way ... 
+                      {t('ongoininfo')}
                     </Text>
                   </View>
                 )}
@@ -405,7 +407,7 @@ const ResponderViewList = () => {
                   <View style={styles.ongoingNoticeBox}>
                     <Text style={styles.ongoingNoticeTitle}>Incident Ongoing</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      This incident is still ongoing because it waits for all responders to mark as Done.
+                      {t('partialdone')}
                     </Text>
                   </View>
                 )}
@@ -413,7 +415,7 @@ const ResponderViewList = () => {
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident Declined</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      If you want to respond to this incident click the "View Responders List" and Click "Accept" to response
+                      {t('accept')}
                     </Text>
                   </View>
                 )}
@@ -421,7 +423,7 @@ const ResponderViewList = () => {
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident Declined</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      Your station Declined this incident ... wait for further notice 
+                      {t('stationdecline')}
                     </Text>
                   </View>
                 )}
@@ -435,7 +437,7 @@ const ResponderViewList = () => {
                     <View style={styles.doneNoticeBox}>
                       <Text style={styles.doneNoticeTitle}>Incident Alert</Text>
                       <Text style={styles.ongoingNoticeText}>
-                        Click the "Alert" to notify your Ongoing 
+                        {t('resalert')}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -448,7 +450,7 @@ const ResponderViewList = () => {
                   <View style={styles.ongoingNoticeBox}>
                     <Text style={styles.ongoingNoticeTitle}>Incident Ongoing</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      If you are finish Click "Ongoing" to mark as Done
+                      {t('resdone')}
                     </Text>
                   </View>
                 )}
@@ -458,7 +460,7 @@ const ResponderViewList = () => {
                     <View style={styles.doneNoticeBox}>
                       <Text style={styles.doneNoticeTitle}>Incident Done</Text>
                       <Text style={styles.ongoingNoticeText}>
-                        These Incident is Already Done
+                        {t('done')}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -468,7 +470,7 @@ const ResponderViewList = () => {
                     <View style={styles.cancelNoticeBox}>
                       <Text style={styles.cancelNoticeTitle}>Incident Cancelled</Text>
                       <Text style={styles.ongoingNoticeText}>
-                        These Incident cancelled for a Reason
+                        {t('cancelled')}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -518,7 +520,7 @@ const ResponderViewList = () => {
                           style={[styles.viewRespondersButton, styles.equalButtonSize]}
                           onPress={() => handleViewResponders(item.id)}
                         >
-                          <Text style={styles.buttonText}>View Responders List</Text>
+                          <Text style={styles.buttonText}>{t('reslist')}</Text>
                         </TouchableOpacity>
                       )}
                     </>
@@ -552,7 +554,7 @@ const ResponderViewList = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 14 ,backgroundColor: "#fff",},
   heading: { fontSize: 20, fontWeight: "bold", marginBottom: 10, textAlign: "center" },
-  searchInput: { height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 10, paddingHorizontal: 10 },
+  searchInput: { height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 10, paddingHorizontal: 10, backgroundColor: "#f0f0f0", borderRadius: 5, color: "#000" },
   filterContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   filterButton: { padding: 8, borderWidth: 1, borderRadius: 5, borderColor: '#ccc' },
   filterButtonActive: { backgroundColor: '#007bff', borderColor: '#007bff' },

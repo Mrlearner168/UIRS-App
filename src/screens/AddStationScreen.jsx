@@ -5,6 +5,7 @@ import MapboxGL from "@rnmapbox/maps";
 import axios from "axios";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -49,7 +50,8 @@ export default function AddStationScreen() {
   const [activeForm, setActiveForm] = useState("add");
   const [stations, setStations] = useState([]);
   const [stationId, setStationId] = useState("");
-  const [editingStation, setEditingStation] = useState(null);   
+  const [editingStation, setEditingStation] = useState(null); 
+  const {t} = useTranslation();  
 
   //fetch stations for delete
   useEffect(() => {
@@ -80,7 +82,7 @@ export default function AddStationScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           console.log("Location permission denied");
-          Alert.alert("Permission denied", "Enable location to pick coordinates");
+          Alert.alert("Permission denied", t('requiredloc'));
           return;
         }
         const loc = await Location.getCurrentPositionAsync({});
@@ -141,7 +143,7 @@ export default function AddStationScreen() {
   const openModal = () => {
     if (!markerCoords) {
       console.log("Marker coordinates not ready");
-      return Alert.alert("Location not ready");
+      return Alert.alert(t('locnotready'));
     }
     setModalVisible(true);
   };
@@ -201,7 +203,7 @@ export default function AddStationScreen() {
 
    const saveStation = async () => {
     if (!name.trim() || !latitude || !longitude)
-      return Alert.alert("Name and Location required");
+      return Alert.alert(t('namelocrequired'));
 
     try {
       let readableAddress = addressSelected;
@@ -226,12 +228,12 @@ export default function AddStationScreen() {
       }, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      Alert.alert("Station updated");
+      Alert.alert(t('stationupdated'));
       setEditingStation(null);
       fetchStations();
     } catch (err) {
       console.error(err);
-      Alert.alert("Update failed", err.response?.data?.error || err.message);
+      Alert.alert(t('stationfailed'));
     }
   };
   
@@ -240,13 +242,13 @@ export default function AddStationScreen() {
       await axios.delete(`${SERVER_URL}/stations_delete/${stationId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      Alert.alert("Station deleted");
+      Alert.alert(t('stationdel'));
       console.log("station_id:" , stationId);
       fetchStations();
     } catch (err) {
       console.log(err);
       console.log("station_id:" , stationId);
-      Alert.alert("Delete failed", err.response?.data?.error || err.message);
+      Alert.alert(t('delfailed'));
     }
   };
 
@@ -276,14 +278,14 @@ export default function AddStationScreen() {
 
       if (check.data.some((station) => station.id === Number(id))) {
         console.log("Duplicate ID found");
-        Alert.alert("Station ID already exists");
+        Alert.alert(t('dupstationid'));
         setSubmitting(false);
         return;
       }
 
       if (contact && check.data.some((station) => station.contact === contact.trim())) {
         console.log("Duplicate contact found");
-        Alert.alert("Contact number already exists");
+        Alert.alert(t('dupcontact'));
         setSubmitting(false);
         return;
       }
@@ -376,25 +378,27 @@ export default function AddStationScreen() {
           }
           ListHeaderComponent={
             <>
-              <Text style={styles.title}>Add Station</Text>
+              <Text style={styles.title}>{t('addstation')}</Text>
           
-              <Text style={styles.label}>Station ID</Text>
+              <Text style={styles.label}>{t('stationid')}</Text>
               <TextInput
                 style={styles.input}
                 value={id}
                 onChangeText={setId}
                 placeholder="e.g 1234"
+                placeholderTextColor={"#888"}
               />
       
-              <Text style={styles.label}>Name</Text>
+              <Text style={styles.label}>{t('stationname')}</Text>
               <TextInput
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="Station Name"
+                placeholder={t('enterstationname')}
+                placeholderTextColor={"#888"}
               />
       
-              <Text style={styles.label}>Type</Text>
+              <Text style={styles.label}>{t('type')}</Text>
               <View style={styles.pickerWrap}>
                 <Picker selectedValue={type} onValueChange={setType} style={styles.picker}>
                   {STATION_TYPES.map((t) => (
@@ -403,7 +407,7 @@ export default function AddStationScreen() {
                 </Picker>
               </View>
                 
-              <Text style={styles.label}>Location</Text>
+              <Text style={styles.label}>{t('stationaddress')}</Text>
               <TouchableOpacity onPress={openModal}>
                 <TextInput
                   style={[styles.input, styles.readonly]}
@@ -412,7 +416,7 @@ export default function AddStationScreen() {
                 />
               </TouchableOpacity>
                 
-              <Text style={styles.label}>Contact</Text>
+              <Text style={styles.label}>{t('stationcontact')}</Text>
               <TextInput
                 style={styles.input}
                 value={contact}
@@ -427,6 +431,7 @@ export default function AddStationScreen() {
                 onChangeText={setFacebook}
                 autoCapitalize="none"
                 placeholder="https://facebook.com/yourpage"
+                placeholderTextColor={"#888"}
               />
       
               <TouchableOpacity
@@ -435,7 +440,7 @@ export default function AddStationScreen() {
                 disabled={submitting}
               >
                 <Text style={styles.buttonText}>
-                  {submitting ? "Submitting..." : "Save Station"}
+                  {submitting ? "Submitting..." : t('savestation')}
                 </Text>
               </TouchableOpacity>
             </>
@@ -458,29 +463,31 @@ export default function AddStationScreen() {
               <View style={styles.card}>
                   {editingStation === item.id ? (
                     <>
-                      <Text style={styles.title}>Update Station</Text>
-                      <Text style={styles.label}>Station ID</Text>
+                      <Text style={styles.title}>{t('updatestation')}</Text>
+                      <Text style={styles.label}>{t('stationid')}</Text>
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input,{ backgroundColor: '#fff', color: '#000' }]}
                         value={stationId}
                         onChangeText={setStationId}
-                        placeholder="Enter Station ID"
+                        placeholder={t('enterstationid')}
+                        placeholderTextColor={"#888"}
                       />
         
-                      <Text style={styles.label}>Name</Text>
+                      <Text style={styles.label}>{t('stationname')}</Text>
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input ,{ backgroundColor: '#fff', color: '#000' }]}
                         value={name}
                         onChangeText={setName}
-                        placeholder="Station Name"
+                        placeholder={t('enterstationname')}
+                        placeholderTextColor={"#888"}
                       />
         
-                      <Text style={styles.label}>Type</Text>
-                      <View style={styles.pickerWrap}>
+                      <Text style={styles.label}>{t('type')}</Text>
+                      <View style={[styles.pickerWrap, { backgroundColor: '#fff' }]}>
                         <Picker
                           selectedValue={type}
                           onValueChange={setType}
-                          style={styles.picker}
+                          style={[styles.picker, { backgroundColor: '#fff', color: '#000' }]}
                         >
                           {STATION_TYPES.map((t) => (
                             <Picker.Item key={t} label={t} value={t} />
@@ -488,21 +495,22 @@ export default function AddStationScreen() {
                         </Picker>
                       </View>
                         
-                      <Text style={styles.label}>Location</Text>
+                      <Text style={styles.label}>{t('location')}</Text>
                       <TouchableOpacity onPress={() => setModalVisible(true)}>
                         <TextInput
-                          style={[styles.input, styles.readonly]}
+                          style={[styles.input, styles.readonly, { backgroundColor: '#fff', color: '#000' }]}
                           value={addressSelected}
                           editable={false}
                         />
                       </TouchableOpacity>
                         
-                      <Text style={styles.label}>Contact</Text>
+                      <Text style={styles.label}>{t('stationcontact')}</Text>
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input, { backgroundColor: '#fff', color: '#000' }]}
                         value={contact}
                         onChangeText={setContact}
                         placeholder="09xxxxxxxxx"
+                        placeholderTextColor={"#888"}
                       />
         
                       <Text style={styles.label}>Facebook URL</Text>
@@ -511,6 +519,7 @@ export default function AddStationScreen() {
                         value={facebook}
                         onChangeText={setFacebook}
                         placeholder="https://facebook.com/..."
+                        placeholderTextColor={"#888"}
                       />
         
                       <View style={{ flexDirection: "row", marginTop: 10 }}>
@@ -518,7 +527,7 @@ export default function AddStationScreen() {
                           style={[styles.button, { flex: 1, marginRight: 5 }]}
                           onPress={saveStation}
                         >
-                          <Text style={styles.buttonText}>Save</Text>
+                          <Text style={styles.buttonText}>{t('savestation')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[
@@ -527,23 +536,23 @@ export default function AddStationScreen() {
                           ]}
                           onPress={() => setEditingStation(null)}
                         >
-                          <Text style={styles.buttonText}>Cancel</Text>
+                          <Text style={styles.buttonText}>{t('cancel')}</Text>
                         </TouchableOpacity>
                       </View>
                     </>
                   ) : (
                     <>
-                      <Text style={styles.text}>Station ID: {item.station_id}</Text>
-                      <Text style={styles.text}>Name: {item.name}</Text>
-                      <Text style={styles.text}>Type: {item.type}</Text>
-                      <Text style={styles.text}>Address: {item.address}</Text>
-                      <Text style={styles.text}>Contact: {item.contact}</Text>
+                      <Text style={styles.text}>{t('stationid')}{item.station_id}</Text>
+                      <Text style={styles.text}>{t('stationname')} {item.name}</Text>
+                      <Text style={styles.text}>{t('type')} {item.type}</Text>
+                      <Text style={styles.text}>{t('stationaddress')} {item.address}</Text>
+                      <Text style={styles.text}>{t('stationcontact')}{item.contact}</Text>
                   
                       <TouchableOpacity
                         style={[styles.button, { marginTop: 8 }]}
                         onPress={() => startEdit(item)}
                       >
-                        <Text style={styles.buttonText}>Edit</Text>
+                        <Text style={styles.buttonText}>{t('edit')}</Text>
                       </TouchableOpacity>
                     </>
                   )}
@@ -552,7 +561,7 @@ export default function AddStationScreen() {
             ListEmptyComponent={
               <View style={{ alignItems: "center", marginTop: 50 }}>
                 <Text style={{ fontSize: 16, color: "gray" }}>
-                  No stations available
+                  {t('nostation')}
                 </Text>
               </View>
             }
@@ -573,22 +582,22 @@ export default function AddStationScreen() {
             }
             renderItem={({ item }) => (
                 <View style={styles.card}>
-                  <Text style={styles.text}>Station ID: {item.station_id}</Text>
-                  <Text style={styles.text}>Name: {item.name}</Text>
-                  <Text style={styles.text}>Type: {item.type}</Text>
-                  <Text style={styles.text}>Address: {item.address}</Text>
-                  <Text style={styles.text}>Contact: {item.contact}</Text>
+                  <Text style={styles.text}>{t('stationid')}: {item.station_id}</Text>
+                  <Text style={styles.text}>{t('stationname')} {item.name}</Text>
+                  <Text style={styles.text}>{t('stationtype')} {item.type}</Text>
+                  <Text style={styles.text}>{t('stationaddress')} {item.address}</Text>
+                  <Text style={styles.text}>{t('stationcontact')} {item.contact}</Text>
 
                   <TouchableOpacity
                     style={[styles.button, { backgroundColor: "#e63946" }]}
                     onPress={() =>
                       Alert.alert(
                         "Delete Station",
-                        `Are you sure you want to delete "${item.name}"?`,
+                        `${t('confirmdel')} station ${item.name} ?`,
                         [
-                          { text: "Cancel", style: "cancel" },
+                          { text: t('cancel'), style: "cancel" },
                           {
-                            text: "Delete",
+                            text: t('delete'), 
                             style: "destructive",
                             onPress: () => deleteStation(item.id),
                           },
@@ -596,14 +605,14 @@ export default function AddStationScreen() {
                       )
                     }
                   >
-                    <Text style={styles.buttonText}>Delete</Text>
+                    <Text style={styles.buttonText}>{t('delete')}</Text>
                   </TouchableOpacity>
                 </View>
             )}
             ListEmptyComponent={
               <View style={{ alignItems: "center", marginTop: 50 }}>
                 <Text style={{ fontSize: 16, color: "gray" }}>
-                  No stations available
+                  {t('nostation')}
                 </Text>
               </View>
             }
@@ -629,7 +638,8 @@ export default function AddStationScreen() {
                       fontSize: 16,
                       backgroundColor: "#fafafa",
                     }}
-                    placeholder="Search location..."
+                    placeholder={t('searchloc')}
+                    placeholderTextColor={"#888"}
                     value={searchText}
                     onChangeText={handleSearch}
                     />
@@ -669,13 +679,13 @@ export default function AddStationScreen() {
                   )}
               </MapboxGL.MapView>
               <TouchableOpacity onPress={confirmLocation} style={styles.button}>
-                  <Text style={styles.buttonText}>Confirm Location</Text>
+                  <Text style={styles.buttonText}>{t('confirmloc')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                   onPress={() => setModalVisible(false)}
                   style={[styles.button, { backgroundColor: "#aaa" }]}
                   >
-                  <Text style={styles.buttonText}>Cancel</Text>
+                  <Text style={styles.buttonText}>{t('cancel')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -696,6 +706,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     backgroundColor: "#fafafa",
+    color: "#000",
   },
   readonly: { backgroundColor: "#f0f0f0", color: "#555" },
   pickerWrap: {
@@ -703,8 +714,9 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 8,
     backgroundColor: "#fafafa",
+    color: "#000",
   },
-  picker: { height: 50 },
+  picker: { height: 50, width: "100%", color: "#000",backgroundColor: "#fafafa" },
   button: {
     backgroundColor: "#0a7",
     paddingVertical: 10,

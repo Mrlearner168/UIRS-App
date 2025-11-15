@@ -1,5 +1,6 @@
 import { SERVER_URL } from "@env";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Alert,
   FlatList,
@@ -20,6 +21,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
   const [userRole, setUserRole] = useState("");
   const [isHead, setIsHead] = useState(false);
   const [userStationId, setUserStationId] = useState(null);
+  const { t } = useTranslation();
   //console.log("incidentId:", incidentId);
   useEffect(() => {
     const fetchUser = async () => {
@@ -50,7 +52,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
         refreshData();
         Alert.alert(
           "Success",
-          "Responder status updated successfully.",
+          t('resupdated'),
           [{ text: "OK", onPress: onClose }],
           { cancelable: true }
         );
@@ -98,8 +100,8 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
       const canChangeStatus =
       item.station_id === userStationId &&
       (userRole === "responder_head" || (userRole === "responder_personnel" && isHead));
-      console.log(`Rendering item for station ID ${item.station_id}: canChangeStatus = ${canChangeStatus}`);
-      console.log("station id ", item.station_id, " user station id ", userStationId);
+      //console.log(`Rendering item for station ID ${item.station_id}: canChangeStatus = ${canChangeStatus}`);
+      //console.log("station id ", item.station_id, " user station id ", userStationId);
     return (
       <View style={styles.card}>
         <View style={styles.cardRow}>
@@ -112,7 +114,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
             <View style={styles.doneNoticeBox}>
               <Text style={styles.doneNoticeTitle}>Your Station    [Declined]</Text>
               <Text style={styles.ongoingNoticeText}>
-                Your station status if you want to Accept your current station status to this incident is "{item.acceptDecline}"
+               {t("acceptstat")} "{item.acceptDecline}"
               </Text>
             </View>
           </TouchableOpacity>
@@ -122,7 +124,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
             <View style={styles.doneNoticeBox}>
               <Text style={styles.doneNoticeTitle}>Your Station    [Accepted]</Text>
               <Text style={styles.ongoingNoticeText}>
-                Your station status if you want to Decline your current station status to this incident is "{item.acceptDecline}"
+                {t('changestat')} "{item.acceptDecline}"
               </Text>
             </View>
           </TouchableOpacity>
@@ -132,7 +134,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
             style={styles.remarksButton}
             onPress={() => openRemarks(item.remarks)}
           > 
-            <Text style={styles.remarksButtonText}>View Remarks</Text>
+            <Text style={styles.remarksButtonText}>{t('viewremarks')}</Text>
           </TouchableOpacity>
         )}
         {canChangeStatus && (
@@ -142,7 +144,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
                 style={[styles.actionButton, { backgroundColor: "#4CAF50" }]}
                 onPress={() => handleStatusChange(item.station_id, "accepted")}
               >
-                <Text style={styles.actionText}>Accept</Text>
+                <Text style={styles.actionText}>{t('acceptrequest')}</Text>
               </TouchableOpacity>
             )}
             {item.acceptDecline === "accepted" &&(
@@ -150,7 +152,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
                 style={[styles.actionButton, { backgroundColor: "#F44336" }]}
                 onPress={() => handleDeclinePress(item.station_id)}
               >
-                <Text style={styles.actionText}>Decline</Text>
+                <Text style={styles.actionText}>{t('declinerequest')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -170,17 +172,17 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
       >
         <View style={styles.overlay}>
           <View style={styles.container}>
-            <Text style={styles.title}>Responder Stations</Text>
+            <Text style={styles.title}>{t('respoderstations')}</Text>
             <FlatList
               data={responders}
               keyExtractor={(item) => item.id.toString()}
               renderItem={renderItem}
               ListEmptyComponent={
-                <Text style={styles.empty}>No responders assigned</Text>
+                <Text style={styles.empty}>{t('noresponders')}</Text>
               }
             />
             <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-              <Text style={styles.closeText}>Close</Text>
+              <Text style={styles.closeText}>{t('close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -195,7 +197,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
       >
         <View style={styles.overlay}>
           <View style={styles.remarksContainer}>
-            <Text style={styles.remarksTitle}>Responder Remarks</Text>
+            <Text style={styles.remarksTitle}>{t('responderremarks')}</Text>
             <Text style={styles.remarksText}>{selectedRemarks}</Text>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -216,9 +218,10 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
       >
         <View style={styles.overlay}>
           <View style={styles.remarksContainer}>
-            <Text style={styles.remarksTitle}>Reason for Decline</Text>
+            <Text style={styles.remarksTitle}>{t('reasons')}</Text>
             <TextInput
-              placeholder="Enter remarks"
+              placeholder={t('reasonsfordecline')}
+              placeholderTextColor={"#888"}
               style={styles.input}
               value={selectedRemarks}
               onChangeText={setSelectedRemarks}
@@ -229,13 +232,13 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
                 style={[styles.actionButton, { backgroundColor: "#F44336" }]}
                 onPress={submitDecline}
               >
-                <Text style={styles.actionText}>Submit</Text>
+                <Text style={styles.actionText}>{t('submit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: "#9E9E9E" }]}
                 onPress={() => setDeclineModalVisible(false)}
               >
-                <Text style={styles.actionText}>Cancel</Text>
+                <Text style={styles.actionText}>{t('declinerequest')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -376,6 +379,17 @@ doneNoticeTitle: {
   color: '#22ec29ff',
   marginBottom: 4,
 },
+input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 80,
+    marginBottom: 20,
+    backgroundColor: '#fafafa',
+    color: '#000',
+    textAlignVertical: 'top',
+  },
 });
 
 export default RespondersModal;

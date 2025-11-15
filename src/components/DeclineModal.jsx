@@ -1,5 +1,6 @@
 // DeclineModal.js
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import RootSiblings from "react-native-root-siblings";
 
@@ -9,22 +10,24 @@ let sibling = null;
 const DeclineModalContent = ({ incident, onSubmit, onCancel }) => {
   const [remarks, setRemarks] = useState("");
   const [incidentType] = useState(incident.incidentType || ""); 
+  const { t } = useTranslation();
 
-  console.log("DeclineModalContent rendered for incident:", incident?.id);
-  console.log("fetch incident type:" , incident?.incidentType);
+  //console.log("DeclineModalContent rendered for incident:", incident?.id);
+  //console.log("fetch incident type:" , incident?.incidentType);
 
   return (
     <View style={[styles.overlay, { zIndex: 9999 }]}>
       <View style={styles.modal}>
         <Text style={styles.title}>Decline Incident</Text>
-        <Text style={styles.label}>Type: {incident.incidentType}</Text>
-        <Text style={styles.label}>Sub-Type: {incident.subType}</Text>
+        <Text style={styles.label}>{t('incidenttype')} {incident.incidentType}</Text>
+        <Text style={styles.label}>{t('subtype')} {incident.subType}</Text>
         {incidentType === "Others" && (
-          <Text style={styles.label}>Description: {incident.incidentDescription}</Text>
+          <Text style={styles.label}>{t('description')} {incident.incidentDescription}</Text>
         )}
         <TextInput
           style={styles.input}
-          placeholder="Reason for declining"
+          placeholder={t('reasonsfordecline')}
+          placeholderTextColor={"#888"}
           value={remarks}
           onChangeText={setRemarks}
         />
@@ -33,14 +36,14 @@ const DeclineModalContent = ({ incident, onSubmit, onCancel }) => {
             style={styles.submitBtn}
             onPress={() => {
               if (!remarks.trim()) {
-                alert("Please state your Reasons");
+                alert(t('reasonsfordecline'));
                 return;
               }
               console.log("Decline modal submitted for incident:", incident.id, "Remarks:", remarks);
               onSubmit(remarks);
             }}
           >
-            <Text style={styles.btnText}>Submit</Text>
+            <Text style={styles.btnText}>{t('submit')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -93,7 +96,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
   label: { marginBottom: 5 },
-  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 10, marginVertical: 10 },
+  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 10, marginVertical: 10 , backgroundColor: '#fafafa', color: '#000' },
   buttons: { flexDirection: "row", justifyContent: "space-between" },
   cancelBtn: { backgroundColor: "#aaa", padding: 10, borderRadius: 8, flex: 1, marginRight: 5, alignItems: "center" },
   submitBtn: { backgroundColor: "#e53935", padding: 10, borderRadius: 8, flex: 1, marginLeft: 5, alignItems: "center" },

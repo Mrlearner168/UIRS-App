@@ -2,6 +2,7 @@ import { MAPBOX_TOKEN, SERVER_URL } from '@env';
 import { Picker } from '@react-native-picker/picker';
 import MapboxGL from '@rnmapbox/maps';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
 
@@ -20,6 +21,8 @@ const TrackLocationScreen = ({ route, navigation }) => {
   const [token, setToken] = useState(null);
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
+  const {t} = useTranslation();
+
 
   // Fetch token once
   useEffect(() => {
@@ -230,7 +233,7 @@ const TrackLocationScreen = ({ route, navigation }) => {
 
       {(!incidentCoords && !userCoords) && (
         <View style={styles.loadingContainer}>
-          <Text>Loading map data...</Text>
+          <Text>{t('loadingmap')}</Text>
         </View>
       )}
 
@@ -357,7 +360,7 @@ const TrackLocationScreen = ({ route, navigation }) => {
 
 
       <View style={styles.infoBox}>
-        <Text style={styles.infoTitle}>Responder Info</Text>
+        <Text style={styles.infoTitle}>{t('resinfo')}</Text>
           
         {/* Station Picker */}
         {stations && stations.filter(st => st.responders && st.responders.length > 0).length > 0 ? (
@@ -367,7 +370,7 @@ const TrackLocationScreen = ({ route, navigation }) => {
             style={styles.picker}
             dropdownIconColor="black"
           >
-            <Picker.Item label="Select a station" value={null} />
+            <Picker.Item label={t('selectstation')} value={null} />
             {stations
               .filter(st => st.responders && st.responders.length > 0)
               .map((station) => (
@@ -380,16 +383,16 @@ const TrackLocationScreen = ({ route, navigation }) => {
           </Picker>
 
         ) : (
-          <Text style={styles.infoText}>No stations with responders</Text>
+          <Text style={styles.infoText}>{t('nostationres')}</Text>
         )}
       
         {/* Responder Info */}
         {selectedStation && responderInfo ? (
           <>
-            <Text style={styles.infoText}>Name: {responderInfo.firstName} {responderInfo.lastName}</Text>
-            <Text style={styles.infoText}>Status: {responderInfo.status}</Text>
-            <Text style={styles.infoText}>Role: {responderInfo.role}</Text>
-            <Text style={styles.infoText}>Station: {responderInfo.station_name}</Text>
+            <Text style={styles.infoText}>{t('firstname')} {responderInfo.firstName} {responderInfo.lastName}</Text>
+            <Text style={styles.infoText}>{t('status')} {responderInfo.status}</Text>
+            <Text style={styles.infoText}>{t('role')}{responderInfo.role}</Text>
+            <Text style={styles.infoText}>{t('station')} {responderInfo.station_name}</Text>
             {routeDuration ? (
               <Text style={styles.infoText}>ETA: {formatDuration(routeDuration)}</Text>
             ) : (
@@ -397,7 +400,7 @@ const TrackLocationScreen = ({ route, navigation }) => {
             )}
           </>
         ) : (
-          <Text style={styles.infoText}>No responder data</Text>
+          <Text style={styles.infoText}>{t('noresponders')}</Text>
         )}
       </View>
       

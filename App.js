@@ -6,10 +6,12 @@ import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@rea
 import { getFocusedRouteNameFromRoute, NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import MapboxGL from '@rnmapbox/maps';
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
+import { I18nextProvider } from 'react-i18next';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootSiblingParent } from 'react-native-root-siblings';
+import i18n from '../UIRS-V4/src/translation/i18n';
 
 import { MAPBOX_TOKEN } from "@env";
 import { useNavigation } from "@react-navigation/native";
@@ -40,6 +42,7 @@ import RequestScreen from './src/screens/RequestScreen';
 import ResponderPanel from './src/screens/ResponderDashboard';
 import TrackLocationScreen from './src/screens/TrackLocationScreen';
 import UpdatesScreen from './src/screens/UpdatesScreen';
+
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
@@ -552,7 +555,17 @@ function RootNavigator() {
 }
 export default function App() {
   const fcmToken = useFCMToken();
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const loadLanguage = async () => {
+      const lang = await EncryptedStorage.getItem('userLanguage');
+      if (lang) i18n.changeLanguage(lang); // change only if exists
+      setLoading(false);
+    };
+    loadLanguage();
+  }, []);
+  
   useEffect(() => {
     async function setupChannel() {
       await notifee.createChannel({
@@ -594,17 +607,20 @@ export default function App() {
 
   return (
     <RootSiblingParent>
-      <AuthProvider>
-        <IncidentStationMapProvider>
-          <SocketProvider>
-            <ToastProvider>
-              <RootSiblingParent></RootSiblingParent>
-              <AppInitializer />
-              <MainApp />
-            </ToastProvider>
-          </SocketProvider>
-        </IncidentStationMapProvider>
-      </AuthProvider>
+      <I18nextProvider i18n={i18n}>
+        <AuthProvider>
+          <IncidentStationMapProvider>
+            <SocketProvider>
+              <ToastProvider>
+                <RootSiblingParent>
+                  <AppInitializer />
+                  <MainApp />
+                </RootSiblingParent>
+              </ToastProvider>
+            </SocketProvider>
+          </IncidentStationMapProvider>
+        </AuthProvider>
+      </I18nextProvider>
     </RootSiblingParent>
   );
 }

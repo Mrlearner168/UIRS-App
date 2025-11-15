@@ -3,6 +3,7 @@ import { Picker } from '@react-native-picker/picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -44,7 +45,7 @@ const RegisterScreen = ({ navigation }) => {
   const [checkingContact, setCheckingContact] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const { t } = useTranslation();
   const compressImage = async (uri) => {
     try {
       const result = await ImageManipulator.manipulateAsync(
@@ -60,8 +61,8 @@ const RegisterScreen = ({ navigation }) => {
   };
   const pickImageForField = async (setImageField) => {
     Alert.alert(
-      "Select Image Source",
-      "Choose an option to upload your image.",
+      t("uploadimage"),
+      t("chooseimagesource"),
       [
         {
           text: "Camera",
@@ -103,21 +104,21 @@ const RegisterScreen = ({ navigation }) => {
             }
           },
         },
-        { text: "Cancel", style: "cancel" },
+        { text: t('cancel'), style: "cancel" },
       ]
     );
   };
   const validateInputs = () => {
     const newErrors = {};
 
-    if (!firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!phoneNumber.trim()) newErrors.phoneNumber = 'Phone number is required';
-    else if (!/^9\d{9}$/.test(phoneNumber)) newErrors.phoneNumber = 'Enter a valid PH number (e.g., 9XXXXXXXXX)';
-    if (!email.trim()) newErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
-    if (!age.trim() || isNaN(age) || parseInt(age) <= 0) newErrors.age = 'Enter a valid age';
-    if (!idNumber.trim()) newErrors.idNumber = 'ID number is required';
+    if (!firstName.trim()) newErrors.firstName = t('firstnamerequired');
+    if (!lastName.trim()) newErrors.lastName = t('lastnamerequired');
+    if (!phoneNumber.trim()) newErrors.phoneNumber = t('phonenumberrequired');
+    else if (!/^9\d{9}$/.test(phoneNumber)) newErrors.phoneNumber = t('invalidphonenumber');
+    if (!email.trim()) newErrors.email = t('emailrequired');
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = t('invalidemail');
+    if (!age.trim() || isNaN(age) || parseInt(age) <= 0) newErrors.age = t('agerequired');
+    if (!idNumber.trim()) newErrors.idNumber = t('idnumberrequired');
     else {
       let pattern;
       switch (idType) {
@@ -137,14 +138,14 @@ const RegisterScreen = ({ navigation }) => {
       }
       if (!pattern.test(idNumber)) newErrors.idNumber = `Invalid ${idType} format`;
     }
-    if (!frontIdImage) newErrors.frontIdImage = 'Upload front ID';
-    if (!backIdImage) newErrors.backIdImage = 'Upload back ID';
-    if (!selfieImage) newErrors.selfieImage = 'Upload selfie with ID';
-    if (!password.trim()) newErrors.password = 'Password is required';
-    else if (password.length < 8) newErrors.password = 'At least 8 characters';
+    if (!frontIdImage) newErrors.frontIdImage = t('uploadfrontid');
+    if (!backIdImage) newErrors.backIdImage = t('uploadbackid');
+    if (!selfieImage) newErrors.selfieImage = t('uploadselfieid');
+    if (!password.trim()) newErrors.password = t('passwordrequired');
+    else if (password.length < 8) newErrors.password = t('passwordlength');
     else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/.test(password))
-      newErrors.password = 'Include upper, lower, number, and symbol';
-    if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.password = t('passwordcomplexity');
+    if (password !== confirmPassword) newErrors.confirmPassword = t('notmatch');
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -156,7 +157,7 @@ const RegisterScreen = ({ navigation }) => {
   };
   const verifyOtp = async () => {
     if (!email || !otpCode) {
-      Alert.alert('Error', 'Please enter your email and OTP.');
+      Alert.alert('Error',t('enterotp'));
       return;
     }
 
@@ -175,18 +176,18 @@ const RegisterScreen = ({ navigation }) => {
         setOtpVisible(false);
         setOtpSent(false);
         setOtpCode('');
-        Alert.alert('Verified', 'Email verified successfully.');
+        Alert.alert('Verified', t('otpsuccess'));
         handleAddUser();
       } else if (data.message === 'OTP expired') {
-        Alert.alert('OTP Expired', 'Your OTP has expired. Would you like to resend it?', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Resend', onPress: sendEmailOtp },
+        Alert.alert('OTP Expired', t('expiredotp'), [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('resend'), onPress: sendEmailOtp },
         ]);
       } else {
-        Alert.alert('Invalid OTP', data.message || 'Please try again.');
+        Alert.alert(t('invalidotp'));
       }
     } catch (error) {
-      Alert.alert('Error', 'Unable to verify OTP.');
+      Alert.alert('Error', t('verifyotpfailed'));
     } finally {
       setVerifyLoading(false);
     }
@@ -202,7 +203,7 @@ const RegisterScreen = ({ navigation }) => {
       const data = await response.json();
       return data.exists;
     } catch (err) {
-      Alert.alert('Error', 'Unable to validate contact info.');
+      Alert.alert('Error', t('checkcontactfailed'));
       return true;
     }
   };
@@ -220,12 +221,12 @@ const RegisterScreen = ({ navigation }) => {
       if (emailExists || phoneExists) {
         const newErrors = {};
         if (emailExists) {
-          newErrors.email = 'Email already registered';
-          Alert.alert('Duplicate Email', 'This email is already registered.');
+          newErrors.email = t('emailregistered');
+          Alert.alert('Duplicate Email', t('emailalreadyregistered'));
         }
         if (phoneExists) {
-          newErrors.phoneNumber = 'Phone number already registered';
-          Alert.alert('Duplicate Phone', 'This phone number is already registered.');
+          newErrors.phoneNumber = t('phoneregistered');
+          Alert.alert('Duplicate Phone', t('phonealreadyregistered'));
         }
         setErrors((prev) => ({ ...prev, ...newErrors }));
         return;
@@ -239,7 +240,7 @@ const RegisterScreen = ({ navigation }) => {
 
       handleAddUser();
     } catch (error) {
-      Alert.alert('Error', 'Failed to check contact info.');
+      Alert.alert('Error', t('registrationfailed'));
     } finally {
       setCheckingContact(false);
     }
@@ -250,7 +251,7 @@ const RegisterScreen = ({ navigation }) => {
   
     const emailExists = await checkContactExists(email);
     if (emailExists) {
-      Alert.alert('Error', 'Email already registered.');
+      Alert.alert('Error', t('emailalreadyregistered'));
       return;
     }
   
@@ -265,7 +266,7 @@ const RegisterScreen = ({ navigation }) => {
     
       if (response.ok) {
         setOtpSent(true);
-        Alert.alert('OTP Sent', 'Check your email for the code.', [
+        Alert.alert('OTP Sent', t('otpsent'), [
           {
             text: 'OK',
             onPress: () => {
@@ -285,19 +286,19 @@ const RegisterScreen = ({ navigation }) => {
           }
         ]);
       } else {
-        Alert.alert('Error', data.error || 'Failed to send OTP.', [
+        Alert.alert('Error',t('otpfailed'), [
           {
-            text: 'Cancel',
+            text: t('cancel'),
             style: 'cancel'
           },
           {
-            text: 'Retry',
+            text: t('retry'),
             onPress: sendEmailOtp
           }
         ]);
       }
     } catch (err) {
-      Alert.alert('Error', 'Unable to send OTP.');
+      Alert.alert('Error', t('otpfailed'));
     } finally {
       setOtpLoading(false);
     }
@@ -327,27 +328,28 @@ const RegisterScreen = ({ navigation }) => {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert('Success', 'Registration successful!');
+        Alert.alert('Success', t('registrationsuccess'));
         navigation.navigate("Login");
       } else {
-        Alert.alert('Error', data.error || 'Registration failed.');
+        Alert.alert('Error',t('registrationfailed'));
       }
     } catch (err) {
-      Alert.alert('Error', 'An error occurred during registration.');
+      Alert.alert('Error', t('registrationfailed'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.container, {backgroundColor: '#f0f0f0'}]}>
       <View style={styles.formContainer}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Register</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Text style={styles.title}>{t('register')}</Text>
 
           <TextInput
             style={[styles.input, errors.firstName && styles.inputError]}
-            placeholder="First Name"
+            placeholder={t('firstname')}
+            placeholderTextColor="#000"
             value={firstName}
             onChangeText={(text) => {
               setFirstName(text);
@@ -358,7 +360,8 @@ const RegisterScreen = ({ navigation }) => {
           
           <TextInput
             style={[styles.input, errors.lastName && styles.inputError]}
-            placeholder="Last Name"
+            placeholder={t('lastname')}
+            placeholderTextColor="#000"
             value={lastName}
             onChangeText={(text) => {
               setLastName(text);
@@ -372,6 +375,7 @@ const RegisterScreen = ({ navigation }) => {
             <TextInput
               style={[styles.phoneInput, errors.phoneNumber && styles.inputError]}
               placeholder="9XXXXXXXXX"
+              placeholderTextColor="#000"
               value={phoneNumber}
               onChangeText={(text) => {
                 let cleaned = text.replace(/[^0-9]/g, '').slice(0, 10);
@@ -387,7 +391,8 @@ const RegisterScreen = ({ navigation }) => {
             
           <TextInput
             style={[styles.input, errors.email && styles.inputError]}
-            placeholder="Email"
+            placeholder={t('email')}
+            placeholderTextColor="#000"
             value={email}
             onChangeText={(text) => {
               setEmail(text);
@@ -399,7 +404,8 @@ const RegisterScreen = ({ navigation }) => {
           
           <TextInput
             style={styles.input}
-            placeholder="Age"
+            placeholder={t('age')}
+            placeholderTextColor="#000"
             value={age}
             onChangeText={(text) => {
               const cleaned = text.replace(/[^0-9]/g, '').slice(0, 3);
@@ -410,9 +416,13 @@ const RegisterScreen = ({ navigation }) => {
           />
           {errors.age && <Text style={styles.error}>{errors.age}</Text>}
           
-          <Text style={styles.label}>Select ID Type</Text>
-          <View style={styles.pickerContainer}>
-            <Picker selectedValue={idType} onValueChange={(val) => setIdType(val)}>
+          <View style={[styles.pickerContainer, { backgroundColor: '#fff' }]}>
+            <Picker
+              selectedValue={idType}
+              onValueChange={(val) => setIdType(val)}
+              style={{ color: '#000' }}
+              dropdownIconColor="#000"
+            >
               <Picker.Item label="National ID" value="National ID" />
               <Picker.Item label="Passport" value="Passport" />
               <Picker.Item label="Driver's License" value="Driver's License" />
@@ -420,7 +430,7 @@ const RegisterScreen = ({ navigation }) => {
               <Picker.Item label="Student's ID" value="Student's ID" />
             </Picker>
           </View>
-
+                    
           <TextInput
             style={styles.input}
             placeholder={
@@ -429,25 +439,26 @@ const RegisterScreen = ({ navigation }) => {
               idType === "Driver's License" ? 'e.g., A1234567' :
               '4-15 characters'
             }
+            placeholderTextColor="#000"
             value={idNumber}
             onChangeText={setIdNumber}
           />
           {errors.idNumber && <Text style={styles.error}>{errors.idNumber}</Text>}
 
           <TouchableOpacity onPress={() => pickImageForField(setFrontIdImage)} style={styles.imageUploadButton}>
-            <Text>{frontIdImage ? '✅ Front ID Selected' : '📤 Upload Front of ID'}</Text>
+            <Text>{frontIdImage ? t('selectedfrontid') : t('uploadfrontid')}</Text>
           </TouchableOpacity>
           {errors.frontIdImage && <Text style={styles.error}>{errors.frontIdImage}</Text>}
           {frontIdImage && <Image source={{ uri: frontIdImage.uri }} style={styles.previewImage} />}
 
           <TouchableOpacity onPress={() => pickImageForField(setBackIdImage)} style={styles.imageUploadButton}>
-            <Text>{backIdImage ? '✅ Back ID Selected' : '📤 Upload Back of ID'}</Text>
+            <Text>{backIdImage ? t('selectedbackid') : t('uploadbackid')}</Text>
           </TouchableOpacity>
           {errors.backIdImage && <Text style={styles.error}>{errors.backIdImage}</Text>}
           {backIdImage && <Image source={{ uri: backIdImage.uri }} style={styles.previewImage} />}
 
           <TouchableOpacity onPress={() => pickImageForField(setSelfieImage)} style={styles.imageUploadButton}>
-            <Text>{selfieImage ? '✅ Selfie Uploaded' : '📤 Upload Selfie with ID'}</Text>
+            <Text>{selfieImage ? t('selectedselfieid') : t('uploadselfieid')}</Text>
           </TouchableOpacity>
           {errors.selfieImage && <Text style={styles.error}>{errors.selfieImage}</Text>}
           {selfieImage && <Image source={{ uri: selfieImage.uri }} style={styles.previewImage} />}
@@ -455,7 +466,8 @@ const RegisterScreen = ({ navigation }) => {
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
-              placeholder="Password"
+              placeholder={t('password')}
+              placeholderTextColor="#000"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -469,7 +481,8 @@ const RegisterScreen = ({ navigation }) => {
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
-              placeholder="Confirm Password"
+              placeholder={t('confirmpassword')}
+              placeholderTextColor="#000"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry={!showConfirmPassword}
@@ -488,13 +501,13 @@ const RegisterScreen = ({ navigation }) => {
             {checkingContact || otpLoading || loading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Register</Text>
+              <Text style={styles.buttonText}>{t('register')}</Text>
             )}
           </TouchableOpacity>
           
           
           <TouchableOpacity style={styles.loginButton} onPress={() => navigation.navigate("Login")}>
-            <Text style={styles.loginButtonText}>Already have an account? Login</Text>
+            <Text style={styles.loginButtonText}>{t('haveaccount')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -502,14 +515,15 @@ const RegisterScreen = ({ navigation }) => {
       {otpVisible && (
         <View style={styles.otpOverlay}>
           <View style={styles.otpModal}>
-            <Text style={styles.otpTitle}>Email Verification</Text>
-            <Text style={styles.otpSubtitle}>Enter the OTP sent to {email}</Text>
+            <Text style={styles.otpTitle}>{t('verifyemail')}</Text>
+            <Text style={styles.otpSubtitle}>{t('sentto')} {email}</Text>
             <Text style={{ textAlign: 'center', marginBottom: 10, color: '#333' }}>
-              Time remaining: {formatTime(timer)}
+              {t('timeremaining')} {formatTime(timer)}
             </Text>
             <TextInput
               style={styles.otpInput}
-              placeholder="Enter OTP"
+              placeholder={t('otpcode')}
+              placeholderTextColor="#000"
               value={otpCode}
               onChangeText={setOtpCode}
               keyboardType="numeric"
@@ -517,15 +531,15 @@ const RegisterScreen = ({ navigation }) => {
             <View style={styles.otpButtonRow}>
               {!otpSent ? (
                 <TouchableOpacity onPress={sendEmailOtp} style={styles.otpButton}>
-                  {otpLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.otpButtonText}>Send OTP</Text>}
+                  {otpLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.otpButtonText}>{t('sendotp')}</Text>}
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity onPress={verifyOtp} style={styles.otpButton} disabled={verifyLoading}>
-                  {verifyLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.otpButtonText}>Verify</Text>}
+                  {verifyLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.otpButtonText}>{t('verify')}</Text>}
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={() => setOtpVisible(false)} style={[styles.otpButton, { backgroundColor: '#999' }]}>
-                <Text style={styles.otpButtonText}>Cancel</Text>
+                <Text style={styles.otpButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -539,14 +553,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0', padding: 20 },
   formContainer: { backgroundColor: 'white', padding: 20, borderRadius: 8, width: '100%', maxWidth: 400, elevation: 5 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', color: '#333' },
-  input: { height: 45, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, marginBottom: 8, paddingHorizontal: 10, backgroundColor: '#f8f8f8' },
+  input: { height: 45, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, marginBottom: 8, paddingHorizontal: 10, backgroundColor: '#fff',color: '#000' },
   error: { color: 'red', fontSize: 13, marginBottom: 8, marginLeft: 4 },
   button: { backgroundColor: '#007bff', padding: 12, borderRadius: 4, alignItems: 'center', marginTop: 10 },
   buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   loginButton: { marginTop: 10, alignItems: 'center' },
   loginButtonText: { color: '#007bff', textDecorationLine: 'underline' },
   passwordContainer: { flexDirection: 'row', alignItems: 'center', borderColor: '#ccc', borderWidth: 1, borderRadius: 4, paddingHorizontal: 10, backgroundColor: '#f8f8f8', marginBottom: 8 },
-  passwordInput: { flex: 1, height: 45 },
+  passwordInput: { flex: 1, height: 45 ,borderColor: '#ccc', backgroundColor: '#fff',color: '#000'},
   toggleButtonInside: { position: 'absolute', right: 10 },
   imageUploadButton: { backgroundColor: '#eaeaea', padding: 10, borderRadius: 4, alignItems: 'center', marginBottom: 8 },
   label: { fontSize: 16, fontWeight: 'bold', marginBottom: 5, color: '#333' },
@@ -557,7 +571,7 @@ const styles = StyleSheet.create({
   otpModal: { backgroundColor: 'white', padding: 20, borderRadius: 8, width: '85%', maxWidth: 350, elevation: 5 },
   otpTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
   otpSubtitle: { textAlign: 'center', marginBottom: 15, color: '#666' },
-  otpInput: { height: 45, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, marginBottom: 10, paddingHorizontal: 10, backgroundColor: '#f8f8f8' },
+  otpInput: { height: 45, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, marginBottom: 10, paddingHorizontal: 10, backgroundColor: '#fff',color: '#000' },
   otpButtonRow: { flexDirection: 'row', justifyContent: 'space-between' },
   otpButton: { flex: 1, backgroundColor: '#007bff', padding: 10, borderRadius: 4, alignItems: 'center', marginHorizontal: 4 },
   otpButtonText: { color: 'white', fontWeight: 'bold' },

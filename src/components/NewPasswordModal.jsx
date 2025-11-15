@@ -1,6 +1,7 @@
 import { SERVER_URL } from '@env';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const NewPasswordModal = ({ visible, onClose, contact }) => {
@@ -9,14 +10,15 @@ const NewPasswordModal = ({ visible, onClose, contact }) => {
   const [newVisible, setNewVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
 
   const handleSubmit = () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert('Error', 'Enter both fields');
+      Alert.alert('Error', t('pleasefillallfields'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert('Error', t('passwordmismatch'));
       return;
     }
 
@@ -31,12 +33,12 @@ const NewPasswordModal = ({ visible, onClose, contact }) => {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          Alert.alert('Success', 'Password updated successfully');
+          Alert.alert('Success', t('passwordupdated'));
           onClose(true);
           setConfirmPassword('');
           setNewPassword('');
         } else {
-          Alert.alert('Error', data.message || 'Failed to update password');
+          Alert.alert('Error', t('failedtoupdatepassword'));
         }
       })
       .catch(() => Alert.alert('Error', 'Something went wrong'))
@@ -46,10 +48,10 @@ const NewPasswordModal = ({ visible, onClose, contact }) => {
   const handleCancel = () => {
     Alert.alert(
       'Cancel',
-      'Are you sure you want to cancel?',
+      t('cancelpass'),
       [
-        { text: 'No', style: 'cancel' },
-        { text: 'Yes', onPress: () => onClose(false) }
+        { text: t('no'), style: 'cancel' },
+        { text: t('yes'), onPress: () => onClose(false) }
       ]
     );
   };
@@ -58,12 +60,13 @@ const NewPasswordModal = ({ visible, onClose, contact }) => {
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleCancel}>
       <View style={styles.container}>
         <View style={styles.modalBox}>
-          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.title}>{t('resetpass')}</Text>
 
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
-              placeholder="New Password"
+              placeholder={t('newpassword')}
+              placeholderTextColor={"#888"}
               secureTextEntry={!newVisible}
               value={newPassword}
               onChangeText={setNewPassword}
@@ -81,7 +84,8 @@ const NewPasswordModal = ({ visible, onClose, contact }) => {
           <View style={styles.passwordContainer}>
             <TextInput
               style={styles.passwordInput}
-              placeholder="Confirm Password"
+              placeholder={t('confirmpassword')}
+              placeholderTextColor={"#888"}
               secureTextEntry={!confirmVisible}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
@@ -100,12 +104,12 @@ const NewPasswordModal = ({ visible, onClose, contact }) => {
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.buttonText}>Submit</Text>
+              <Text style={styles.buttonText}>{t('submit')}</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={handleCancel}>
-            <Text style={{ textAlign: 'center', color: 'red', marginTop: 10 }}>Cancel</Text>
+            <Text style={{ textAlign: 'center', color: 'red', marginTop: 10 }}>{t('cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     backgroundColor: '#fff',
   },
-  passwordInput: { flex: 1, height: 40 },
+  passwordInput: { flex: 1, height: 40 , backgroundColor: '#fafafa', color: '#000' },
   eyeIcon: { marginLeft: 10 },
   button: { backgroundColor: '#007bff', paddingVertical: 12, borderRadius: 8, marginBottom: 10 },
   buttonText: { color: 'white', fontSize: 16, textAlign: 'center', fontWeight: 'bold' },

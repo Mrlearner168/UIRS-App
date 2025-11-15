@@ -2,6 +2,7 @@ import { SERVER_URL } from "@env";
 import axios from "axios";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -34,7 +35,7 @@ export default function DoneIncidentsScreen() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
-
+  const {t} = useTranslation();
   useEffect(() => {
     fetchIncidents();
   }, []);
@@ -110,7 +111,7 @@ export default function DoneIncidentsScreen() {
 
   const submitRemark = async (incidentId) => {
     if (!remark[incidentId] || remark[incidentId].trim() === "") {
-      Alert.alert("Notice❗", "Remark cannot be empty");
+      Alert.alert("Notice❗", t('remarksempty'));
       return;
     }
     try {
@@ -125,12 +126,12 @@ export default function DoneIncidentsScreen() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      Alert.alert("Success", "Remark added and incident validated");
+      Alert.alert("Success", t('remarksadded'));
       setRemark({ ...remark, [incidentId]: "" });
       fetchIncidents();
     } catch (err) {
       console.log("Error adding remark:", err.response?.data || err.message);
-      Alert.alert("Error", "Failed to add remark");
+      Alert.alert("Error", t('failedremarks'));
     }
   };
 
@@ -151,20 +152,20 @@ export default function DoneIncidentsScreen() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      Alert.alert("Success", "Incident updated");
+      Alert.alert("Success", t('incidentupdated'));
       fetchIncidents();
       setEditModalVisible(false);
     } catch (err) {
       console.log("Error editing incident:", err.response?.data || err.message);
-      Alert.alert("Error", "Failed to edit incident");
+      Alert.alert("Error", t('failedupdate'));
     }
   };
 
   const deleteIncident = async (incidentId) => {
-    Alert.alert("Confirm Delete", "Are you sure you want to delete this incident?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert("Confirm Delete", t('confirmdelincident'), [
+      { text: t('cancel'), style: "cancel" },
       {
-        text: "Delete",
+        text: t('delete'),
         style: "destructive",
         onPress: async () => {
           try {
@@ -190,7 +191,7 @@ export default function DoneIncidentsScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text>Loading done incidents...</Text>
+        <Text>{t('loadingdone')}</Text>
       </View>
     );
   }
@@ -205,20 +206,20 @@ export default function DoneIncidentsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Text style={styles.heading}>Done Incidents</Text>
+      <Text style={styles.heading}>{t('doneincident')}</Text>
       <View style={{ flexDirection: "row", justifyContent: "space-evenly", marginVertical: 10 }}>
         <TouchableOpacity
           onPress={() => setActiveTab("pending")}
           style={{ backgroundColor: activeTab === "pending" ? "#007AFF" : "#ccc", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignItems: "center" }}
         >
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>Pending Post</Text>
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('pendingpost')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => setActiveTab("posted")}
           style={{ backgroundColor: activeTab === "posted" ? "#007AFF" : "#ccc", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignItems: "center" }}
         >
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>Posted</Text>
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('posted')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -229,15 +230,15 @@ export default function DoneIncidentsScreen() {
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text>No incidents available for this tab.</Text>
+            <Text>{t('noincidents')}</Text>
           </View>
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.title}>{item.incidentType}</Text>
-            <Text style={styles.text}>Location: {item.locationReadable || item.location}</Text>
-            <Text style={styles.text}>Reported Time: {item.incidentTime}</Text>
-            <Text style={styles.date}>Created at: {item.created_at}</Text>
+            <Text style={styles.text}>{t('location')}{item.processLocation ||item.locationReadable}</Text>
+            <Text style={styles.text}>{t('reportedtime')} {item.incidentTime}</Text>
+            <Text style={styles.date}>{t('createdat')} {item.created_at}</Text>
 
             {/* Images */}
             <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
@@ -275,17 +276,18 @@ export default function DoneIncidentsScreen() {
             </View>
 
             {item.adminRemarks ? (
-              <Text style={styles.remarks}>Admin Remarks: {item.adminRemarks}</Text>
+              <Text style={styles.remarks}>{t('adminremarks')} {item.adminRemarks}</Text>
             ) : (
               <View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Add remark..."
+                  placeholder={t('addremarks')}
+                  placeholderTextColor={"#888"}
                   value={remark[item.id] || ""}
                   onChangeText={(text) => setRemark({ ...remark, [item.id]: text })}
                 />
                 <TouchableOpacity onPress={() => submitRemark(item.id)} style={styles.button}>
-                  <Text style={{ color: "#fff", fontWeight: "bold" }}>Submit Remark</Text>
+                  <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('submitremark')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -293,11 +295,11 @@ export default function DoneIncidentsScreen() {
             {activeTab === "posted" && (
               <View style={{ flexDirection: "row", marginTop: 10 }}>
                 <TouchableOpacity onPress={() => openEditModal(item)} style={styles.button}>
-                  <Text style={{ color: "#fff", fontWeight: "bold" }}>Edit</Text>
+                  <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('editremarks')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={() => deleteIncident(item.id)} style={styles.delbutton}>
-                  <Text style={{ color: "#fff", fontWeight: "bold" }}>Delete</Text>
+                  <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('delete')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -309,14 +311,14 @@ export default function DoneIncidentsScreen() {
       <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" }}>
           <View style={{ width: 300, padding: 20, backgroundColor: "#fff", borderRadius: 10 }}>
-            <Text>Edit Remarks</Text>
+            <Text>{t('editremarks')}</Text>
             <TextInput value={editRemarks} onChangeText={setEditRemarks} style={{ borderWidth: 1, padding: 8, marginVertical: 10 }} />
             <TouchableOpacity onPress={submitEdit} style={styles.button}>
-              <Text style={{ color: "#fff", fontWeight: "bold" }}>Submit Edit</Text>
+              <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('submitedit')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.delbutton}>
-              <Text style={{ color: "#fff", fontWeight: "bold" }}>Cancel</Text>
+              <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -382,5 +384,5 @@ const styles = StyleSheet.create({
   text: { fontSize: 14, marginBottom: 4 },
   remarks: { fontSize: 16, marginTop: 6, marginBottom: 10, fontStyle: "italic", color: "darkred" },
   date: { fontSize: 12, marginTop: 6, color: "gray" },
-  input: { borderWidth: 1, borderRadius: 6, padding: 8, marginVertical: 8, backgroundColor: "#fff" },
+  input: { borderWidth: 1, borderRadius: 6, padding: 8, marginVertical: 8, backgroundColor: "#fff" , color: "#000"},
 });

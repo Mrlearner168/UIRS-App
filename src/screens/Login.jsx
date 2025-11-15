@@ -1,12 +1,13 @@
 import { SERVER_URL } from '@env';
 import { Ionicons } from '@expo/vector-icons';
-import { useContext, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
+import { useContext, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
+  Platform, SafeAreaView, StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,6 +17,9 @@ import NewPasswordModal from '../components/NewPasswordModal';
 import OTPModal from '../components/OTPModal';
 import TermsModal from '../components/Terms&RegulationsModal';
 import { AuthContext, loading } from '../context/AuthContext';
+import { getAppLanguage, setAppLanguage } from '../translation/i18nStorage';
+//import I18n from '../translation/translations';
+
 
 const LoginScreen = ({ navigation }) => {
   const { login } = useContext(AuthContext);
@@ -32,21 +36,33 @@ const LoginScreen = ({ navigation }) => {
   const [userRole , setUserRole] = useState (null);
   const [name , setName] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [language, setLanguage] = useState('en');
+
+  const { t, i18n } = useTranslation();
 
 
   const handleRegister = () => {
     navigation.navigate('Register');
   };
 
+  useEffect(() => {
+    const syncLanguage = async () => {
+      const savedLang = await getAppLanguage();
+      setLanguage(savedLang);
+    };
+    syncLanguage();
+  }, []);
+  
+
   const handleLogin = async () => {
     if (isLocked) {
-      Alert.alert('Account Locked', 'Too many failed login attempts. Try again later.');
+      Alert.alert('Account Locked', t('lockaccount'));
       setPassword('');
       return;
     }
 
     if (!contact || !password) {
-      Alert.alert('Login Failed', 'Enter both email/phone and password.');
+      Alert.alert('Login Failed', t('incorrectcredentials'));
       return;
     }
 
@@ -67,7 +83,7 @@ const LoginScreen = ({ navigation }) => {
       const contactCheckData = await contactCheckResponse.json();
 
       if (!contactCheckData.exists) {
-        Alert.alert('No Account', 'No account registered with this email or phone.');
+        Alert.alert('No Account', t('noaccount'));
         setPassword('');
         return;
       }
@@ -86,7 +102,7 @@ const LoginScreen = ({ navigation }) => {
       const data = await response.json();
 
       if (data.status === 'inactive') {
-        Alert.alert('Validation', 'Your account is being validated. Please wait.');
+        Alert.alert('Validation', t('validateaccount'));
         setPassword('');
         return;
       }
@@ -111,17 +127,15 @@ const LoginScreen = ({ navigation }) => {
         setIsLocked(true);
         setTimeout(() => setIsLocked(false), 60000);
       }
-      Alert.alert('Login Failed', 'Invalid email/phone or password.');
+      Alert.alert('Login Failed', t('incorrectcredentials'));
       setPassword('');
     } finally {
       setIsLoggingIn(false); // stop spinner
     }
   };
-
-  
   const handleAcceptTerms = () => {
     setShowTerms(false);
-    Alert.alert('Welcome ' , `Welcome ${name}`);
+    Alert.alert('Welcome ' , `${t('welcome')} ${name}`);
     if (userRole === "admin") {
       navigation.navigate("AdminDashboard");
     } else if (userRole === "responder_head" ||userRole === "responder_personnel" ) {
@@ -129,10 +143,9 @@ const LoginScreen = ({ navigation }) => {
     } else if (userRole === "user"){
       navigation.navigate("UserHome");
     }else {
-      Alert.Alert('Reminder' , "Your are not Registered ❗")
+      Alert.alert('Reminder' , t('infoncomplete'));
     }
   }; 
-
 
   if (loading) {
     return (
@@ -143,28 +156,50 @@ const LoginScreen = ({ navigation }) => {
     );
   }
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Login</Text>
-
-        <Text style={styles.label}>Email or Phone</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email/phone"
-          value={contact}
-          onChangeText={setContact}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordContainer}>
+    <SafeAreaView style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.container}
+      >
+        <View style={styles.languageContainer}>
+          <View style={styles.languageRow}>
+            <Ionicons name="globe-outline" size={20} color="black" style={{ marginRight: 5 }} />
+          <Picker
+            selectedValue={language}
+            onValueChange={async (value) => {
+              setLanguage(value);
+              await setAppLanguage(value);  
+            }}
+            style={styles.languagePicker}
+            mode="dropdown"
+          >
+            <Picker.Item label="English" value="en" />
+            <Picker.Item label="Filipino" value="fil" />
+            <Picker.Item label="Hiligaynon" value="hil" />
+          </Picker>
+          
+          </View>
+        </View>
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>{t('login')}</Text>
+    
+          <Text style={styles.label}>{t('email')}</Text>
           <TextInput
-            style={styles.passwordInput}
-            placeholder="Enter your password"
+            style={[styles.input,{ backgroundColor: '#fff', color: '#000' } ]}
+            placeholder={t('emailplaceholder')}
+            placeholderTextColor="#000"
+            value={contact}
+            onChangeText={setContact}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+  
+          <Text style={styles.label}>{t('password')}</Text>
+          <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, { backgroundColor: '#fff', color: '#000' } ]}
+            placeholder={t('passwordplaceholder')}
+            placeholderTextColor="#000"
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!passwordVisible}
@@ -177,26 +212,26 @@ const LoginScreen = ({ navigation }) => {
               style={styles.eyeIcon}
             />
           </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={handleLogin}
-          disabled={isLoggingIn} // prevent multiple clicks
-        >
-          {isLoggingIn ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.loginButtonText}>Login</Text>
-          )}
-        </TouchableOpacity>
-        
-
-        <View style={styles.linksContainer}>
+          </View>
+    
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={handleLogin}
+            disabled={isLoggingIn} // prevent multiple clicks
+          >
+            {isLoggingIn ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.loginButtonText}>{t('login')}</Text>
+            )}
+          </TouchableOpacity>
+          
+          
+          <View style={styles.linksContainer}>
           <TouchableOpacity
             onPress={() => {
               if (!contact) {
-                Alert.alert('Enter Email or Phone', 'Please enter your email or phone first');
+                Alert.alert(t('emailplaceholder'), t('emptyemailphone'));
                 return;
               }
             
@@ -205,7 +240,7 @@ const LoginScreen = ({ navigation }) => {
               const isPhone = /^\d{10,15}$/.test(contact.replace(/\D/g, '')); // numeric only, 10-15 digits
             
               if (!isEmail && !isPhone) {
-                Alert.alert('Invalid', 'Enter a valid email or phone number');
+                Alert.alert('Invalid', t('invalidemailphone'));
                 return;
               }
               setOtpContact(contact);       // pass to OTP modal
@@ -213,16 +248,16 @@ const LoginScreen = ({ navigation }) => {
               setOtpVisible(true);
             }}
           >
-            <Text style={styles.linkText}>Forgot Password?</Text>
+            <Text style={styles.linkText}>{t('forgotPassword')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity onPress={handleRegister}>
-            <Text style={styles.linkText}>Sign Up</Text>
+            <Text style={styles.linkText}>{t('signUp')}</Text>
           </TouchableOpacity>
+          </View>
         </View>
-      </View>
-      <OTPModal
-        visible={otpVisible}
+        <OTPModal
+          visible={otpVisible}
         contact={otpContact}
         isForgotPassword={isForgotPassword}
         onClose={(success) => {
@@ -231,22 +266,23 @@ const LoginScreen = ({ navigation }) => {
             setNewPassVisible(true); // open new password modal
             setIsForgotPassword(false);
           }
-        }}
-      />
-
-      {/* NewPasswordModal*/}
-      <NewPasswordModal
-        visible={newPassVisible}
+          }}
+        />
+  
+        {/* NewPasswordModal*/}
+        <NewPasswordModal
+          visible={newPassVisible}
         contact={otpContact}
-        onClose={() => setNewPassVisible(false)}
-      />
-
-      <TermsModal
-        visible={showTerms}
-        onClose={() => setShowTerms(false)}
-        onAccept={handleAcceptTerms}
-      />
-    </KeyboardAvoidingView>
+          onClose={() => setNewPassVisible(false)}
+        />
+  
+        <TermsModal
+          visible={showTerms}
+          onClose={() => setShowTerms(false)}
+          onAccept={handleAcceptTerms}
+        />
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -327,6 +363,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
+  languageContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 20,
+    width: 130,
+    zIndex: 20,
+    borderRadius: 25,
+    padding: 1,
+  },
+  languagePicker: {
+    color: 'black',
+    width: '100%',
+    height: 58,
+    marginRight: 10,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 25,
+    
+  },
+  languageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0e0e0',
+    color: 'black',
+    borderRadius: 25,
+    paddingHorizontal: 8,
+  },
+
 });
 
 export default LoginScreen;

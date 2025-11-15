@@ -1,11 +1,13 @@
 import { SERVER_URL } from '@env';
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from "@react-native-community/netinfo";
+import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useContext, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -27,6 +29,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import UpdateContactModal from '../components/UpdateContactModal';
 import { AuthContext } from '../context/AuthContext';
+import { getAppLanguage, setAppLanguage } from '../translation/i18nStorage';
 
 const ProfileScreen = ({ navigation }) => {
   const [userId, setUserId] = useState('');
@@ -68,13 +71,23 @@ const ProfileScreen = ({ navigation }) => {
   const [roleType, setRoleType] = useState("responder_personnel"); 
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
   const [updateTarget, setUpdateTarget] = useState('email'); // or 'phone'
+  const [language, setLanguage] = useState('en');
 
+  const { t, i18n } = useTranslation();
   const { logout } = useContext(AuthContext);
   
   // Check if the user is online or offline
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => setIsOnline(state.isConnected));
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const syncLanguage = async () => {
+      const savedLang = await getAppLanguage();
+      setLanguage(savedLang);
+    };
+    syncLanguage();
   }, []);
   
   //check for token
@@ -155,12 +168,15 @@ const ProfileScreen = ({ navigation }) => {
   useFocusEffect(
     React.useCallback(() => {
       const unsubscribe = navigation.addListener("tabPress", async () => {
-        //console.log("Tab pressed: refreshing user data");
         if (token) await fetchUserData();
+        setNewPassword('');
+        setConfirmPassword('');
+        setCurrentPasswordInput('');
       });
       return () => unsubscribe();
-    }, [navigation, token, isOnline])
+    }, [navigation, token])
   );
+  
   useEffect(() => {
     const fetchStations = async () => {
       if (!token) return;
@@ -210,7 +226,6 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-
   const handleSaveAvatar = async () => {
     if (!avatarChanged) return;
 
@@ -241,7 +256,7 @@ const ProfileScreen = ({ navigation }) => {
       },
       });
 
-      Alert.alert("Success", "Profile photo updated.");
+      Alert.alert("Success", t('avatarupdated'));
       setAvatarChanged(false);
 
     } catch (error) {
@@ -254,8 +269,8 @@ const ProfileScreen = ({ navigation }) => {
 
   const pickImageForField = (setter) => {
     Alert.alert(
-      "Select Image",
-      "Choose an option",
+      t('chooseimagesource'),
+      t('uploadimage'),
       [
         {
           text: "Camera",
@@ -285,7 +300,7 @@ const ProfileScreen = ({ navigation }) => {
             }
           },
         },
-        { text: "Cancel", style: "cancel" },
+        { text: t('cancel'), style: "cancel" },
       ],
       { cancelable: true }
     );
@@ -347,7 +362,7 @@ const ProfileScreen = ({ navigation }) => {
   
   const handleSubmitRoleRequest = async () => {
     if (!stationId || !roleType || !idCardFront || !idCardBack || !selfieWithId) {
-      Alert.alert("Error", "Please select a station and upload all required images.");
+      Alert.alert("Error", t('uploadrequired'));
       return;
     }
   
@@ -356,10 +371,13 @@ const ProfileScreen = ({ navigation }) => {
       const formData = new FormData();
       formData.append("stationId", stationId);
       formData.append("roleType", roleType); // NEW FIELD
-      formData.append("idCardFront", { uri: idCardFront, name: "idFront.jpg", type: "image/jpeg" });
-      formData.append("idCardBack", { uri: idCardBack, name: "idBack.jpg", type: "image/jpeg" });
-      formData.append("selfieWithId", { uri: selfieWithId, name: "selfie.jpg", type: "image/jpeg" });
-    
+      const compressedFront = await compressImage(idCardFront);
+      const compressedBack = await compressImage(idCardBack);
+      const compressedSelfie = await compressImage(selfieWithId);
+      formData.append("idCardFront", { uri: compressedFront, name: "idFront.webp", type: "image/webp" });
+      formData.append("idCardBack", { uri: compressedBack, name: "idBack.webp", type: "image/webp" });
+      formData.append("selfieWithId", { uri: compressedSelfie, name: "selfie.webp", type: "image/webp" });
+
       await axios.post(`${SERVER_URL}/submit_role_request`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -367,7 +385,7 @@ const ProfileScreen = ({ navigation }) => {
         },
       });
     
-      Alert.alert("Success", "Role request submitted.");
+      Alert.alert("Success", t('rolesubmitted'));
       await fetchUserData();
       setRoleRequestModalVisible(false);
     
@@ -387,12 +405,11 @@ const ProfileScreen = ({ navigation }) => {
   
   const handleSavePassword = () => {
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "New password and confirm password do not match.");
+      Alert.alert("Error", t('notmatch'));
       return;
     }
     setShowPasswordModal(true); // Show modal to enter current password
   };
-  
   const confirmPasswordChange = async () => {
     if (!currentPasswordInput) return;
 
@@ -415,11 +432,10 @@ const ProfileScreen = ({ navigation }) => {
       Alert.alert("Error", error.response?.data?.message || "Update failed.");
     }
   };
-
   const handleLogout = () => {
     setLogoutModalVisible(false);
     logout();
-    Alert.alert("Logged Out", "You have been successfully logged out.");
+    Alert.alert("Logged Out", t('logoutsuccess'));
     navigation.navigate("Login");
   };
 
@@ -432,22 +448,22 @@ const ProfileScreen = ({ navigation }) => {
       }
 
       if (roleStatus === 'pending') {
-        Alert.alert("Info", "Your role request is pending.");
+        Alert.alert("Info", t('rolerequestpending'));
         return;
       }
 
       if (roleStatus === 'accepted') {
         Alert.alert(
           "Confirm Action",
-          "Your role request has already been accepted.Do you want to Request Again?",
+          t('confirmrolechange'),
           [
             {
-              text: "No",
+              text: t('no'),
               onPress: () => console.log("User canceled"),
               style: "cancel"
             },
             {
-              text: "Yes",
+              text: t('yes'),
               onPress: () => {
                 setRoleRequestModalVisible(true);
               }
@@ -458,25 +474,23 @@ const ProfileScreen = ({ navigation }) => {
       }
 
       if (roleStatus === 'declined' || !status) {
-        Alert.alert("Info", "You can't submit a new role request.Invalid Information.");
+        Alert.alert("Info", t('declinedrole'));
         return;
       }
 
       Alert.alert("Info", `Unexpected status: ${roleStatus}. Please contact support.`);
     } catch (error) {
-      Alert.alert("Error", "Failed to check role request status.");
+      Alert.alert("Error", t('erroroccurred'));
     }
   };
-
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchUserData();
-    setRefreshing(false);
-    fetchStations();
-
+    await fetchStations(); // ensure you await this if it's async
+    setNewPassword('');
+    setConfirmPassword('');
+    setCurrentPasswordInput(''); // add this
   };
-  console.log(role);
-
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAwareScrollView
@@ -485,14 +499,32 @@ const ProfileScreen = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {loading && <ActivityIndicator size="large" color="#007bff" style={{ marginBottom: 10 }} />}
-        
+        <View style={styles.languageContainer}>
+          <View style={styles.languageRow}>
+            <Ionicons name="globe-outline" size={20} color="black" style={{ marginRight: 5 }} />
+          <Picker
+            selectedValue={language}
+            onValueChange={async (value) => {
+              setLanguage(value);
+              await setAppLanguage(value);  
+            }}
+            style={styles.languagePicker}
+            mode="dropdown"
+          >
+            <Picker.Item label="English" value="en" />
+            <Picker.Item label="Filipino" value="fil" />
+            <Picker.Item label="Hiligaynon" value="hil" />
+          </Picker>
+          
+          </View>
+        </View>
         <View style={styles.profileContainer}>
             <TouchableOpacity
               onPress={() => {
                 if (isOnline) {
                   pickImage();
                 } else {
-                  Alert.alert("Offline", "Cannot change avatar while offline.");
+                  Alert.alert("Offline", t('cantchangeoffline'));
                 }
               }}
             >
@@ -500,14 +532,14 @@ const ProfileScreen = ({ navigation }) => {
                 <Image source={{ uri: avatar }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarPlaceholderText}>No Image</Text>
+                  <Text style={styles.avatarPlaceholderText}>{t('noimage')}</Text>
                 </View>
               )}
             </TouchableOpacity>
             
             {avatarChanged && isOnline && (
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveAvatar}>
-                <Text style={styles.saveButtonText}>Save Photo</Text>
+                <Text style={styles.saveButtonText}>{t('savephoto')}</Text>
               </TouchableOpacity>
             )}
 
@@ -520,20 +552,20 @@ const ProfileScreen = ({ navigation }) => {
                 style={{ marginLeft: 1 }}
               />
             </Text>
-          </View>
+        </View>
           
 
         <View style={styles.formContainer}>
-          <Text style={styles.label}>First Name</Text>
+          <Text style={styles.label}>{t('firstname')}</Text>
           <TextInput style={styles.input} value={firstName} onChangeText={setFirstName} editable={false} />
 
-          <Text style={styles.label}>Last Name</Text>
+          <Text style={styles.label}>{t('lastname')}</Text>
           <TextInput style={styles.input} value={lastName} onChangeText={setLastName} editable={false} />
 
-          <Text style={styles.label}>Age</Text>
+          <Text style={styles.label}>{t('age')}</Text>
           <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" editable={false}/>
 
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t('email')}</Text>
           <View style={styles.row}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
@@ -550,12 +582,12 @@ const ProfileScreen = ({ navigation }) => {
                   sendOtp();
                 }}
               >
-                <Text style={styles.verifyBtnText}>Change</Text>
+                <Text style={styles.verifyBtnText}>{t('savechanges')}</Text>
               </TouchableOpacity>
             )}
           </View>
           
-          <Text style={styles.label}>Phone</Text>
+          <Text style={styles.label}>{t('phone')}</Text>
           <View style={styles.row}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
@@ -573,66 +605,76 @@ const ProfileScreen = ({ navigation }) => {
                   sendOtp();
                 }}
               >
-                <Text style={styles.verifyBtnText}>Change</Text>
+                <Text style={styles.verifyBtnText}>{t('savechanges')}</Text>
               </TouchableOpacity>
 
             )}
           </View>
           
-          
           {/* PASSWORD SECTION */}
-          <Text style={{ fontSize: 14, marginBottom: 8 , textAlign:'center' }}>( Change Password )</Text>
-          <Text style={styles.label}>New Password</Text>
-          <View style={styles.passwordContainer}>
+          <Text style={{ fontSize: 14, marginBottom: 8, textAlign: 'center', color: '#000' }}>
+            ( {t('changepassword')} )
+          </Text>
+
+          <Text style={[styles.label, { color: '#000' }]}>{t('newpassword')}</Text>
+          <View style={[styles.passwordContainer, { backgroundColor: '#fff' }]}>
             <TextInput
-              style={styles.passwordInput}
-              placeholder="Enter new password"
+              style={[styles.passwordInput, { color: '#000' }]}
+              placeholder={t('enternewpassword')}
+              placeholderTextColor="#888"
               value={newPassword}
               onChangeText={(text) => {
                 if (isOnline) {
                   setNewPassword(text);
                 } else {
-                  Alert.alert("Offline", "Cannot change password while offline.");
+                  Alert.alert(t('offline'), t('erroroffline'));
                 }
               }}
               secureTextEntry={!passwordVisible}
-              
             />
+
             <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
               <Ionicons
                 name={passwordVisible ? "eye-off" : "eye"}
                 size={22}
-                color="gray"
+                color="#000"
                 style={styles.eyeIcon}
               />
             </TouchableOpacity>
           </View>
             
-
           {newPassword && (
             <>
-              <Text style={styles.label}>Confirm New Password</Text>
-              <View style={styles.passwordContainer}>
+              <Text style={[styles.label, { color: '#000' }]}>{t('confirmpassword')}</Text>
+              <View style={[styles.passwordContainer, { backgroundColor: '#fff' }]}>
                 <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Confirm new password"
+                  style={[styles.passwordInput, { color: '#000' }]}
+                  placeholder={t('confirmpassword')}
+                  placeholderTextColor="#888"
                   value={confirmPassword}
-                  onChangeText={setConfirmPassword}
+                  onChangeText={(text) => {
+                    if (isOnline) {
+                      setConfirmPassword(text);
+                    } else {
+                      Alert.alert(t('offline'), t('erroroffline'));
+                    }
+                  }}
                   secureTextEntry={!passwordVisible}
                 />
+
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
                   <Ionicons
                     name={passwordVisible ? "eye-off" : "eye"}
                     size={22}
-                    color="gray"
+                    color="#000"
                     style={styles.eyeIcon}
                   />
                 </TouchableOpacity>
               </View>
-
+                
               {confirmPassword && (
                 <TouchableOpacity style={styles.saveButton} onPress={handleSavePassword}>
-                  <Text style={styles.saveButtonText}>Save Password</Text>
+                  <Text style={styles.saveButtonText}>{t('savepassword')}</Text>
                 </TouchableOpacity>
               )}
             </>
@@ -641,12 +683,12 @@ const ProfileScreen = ({ navigation }) => {
           {/* ROLE REQUEST */}
           {role !== 'admin' && role !== 'responder_head' && (
             <TouchableOpacity style={styles.saveButton1}  onPress={handleApplyResponderRole}>
-              <Text style={styles.saveButtonText}>Apply Responders Role</Text>
+              <Text style={styles.saveButtonText}>{t('applyresponder')}</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity style={styles.logoutButton} onPress={() => setLogoutModalVisible(true)}>
-            <Text style={styles.logoutButtonText}>Log Out</Text>
+            <Text style={styles.logoutButtonText}>{t('logout')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -655,7 +697,7 @@ const ProfileScreen = ({ navigation }) => {
         <Modal visible={showPasswordModal} transparent animationType="slide">
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
-              <Text>Enter current password</Text>
+              <Text>{t('currentpass')}</Text>
               <TextInput
                 value={currentPasswordInput}
                 onChangeText={setCurrentPasswordInput}
@@ -664,10 +706,10 @@ const ProfileScreen = ({ navigation }) => {
               />
               <View style={{ flexDirection: 'row', marginTop: 15 }}>
                 <TouchableOpacity onPress={() => setShowPasswordModal(false)} style={styles.cancelButton}>
-                  <Text>Cancel</Text>
+                  <Text>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={confirmPasswordChange} style={styles.confirmButton}>
-                  <Text>Confirm</Text>
+                  <Text>{t('confirm')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -678,13 +720,13 @@ const ProfileScreen = ({ navigation }) => {
         <Modal animationType="slide" transparent={true} visible={logoutModalVisible}>
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalText}>Are you sure you want to log out?</Text>
+              <Text style={styles.modalText}>{t('logoutinfo')}</Text>
               <View style={styles.modalButtons}>
                 <TouchableOpacity style={styles.cancelButton} onPress={() => setLogoutModalVisible(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.confirmButton} onPress={handleLogout}>
-                  <Text style={styles.confirmButtonText}>Log Out</Text>
+                  <Text style={styles.confirmButtonText}>{t('logout')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -696,7 +738,7 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.roleRequestModalContent}>
               <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.modalTitle}>Apply Responder Role</Text>
+                <Text style={styles.modalTitle}>{t('applyresponder')}</Text>
 
                 {/* Station Selection */}
                 <TouchableOpacity
@@ -706,11 +748,11 @@ const ProfileScreen = ({ navigation }) => {
                   <Text style={styles.uploadButtonText}>
                     {stationId
                       ? `Selected: ${stations.find(s => s.id === stationId)?.name}`
-                      : "Select Station"}
+                      : t('selectstation')}
                   </Text>
                 </TouchableOpacity>
                 {/* role Type */}
-                <Text style={styles.label}>Select Role Type</Text>
+                <Text style={styles.label}>{t('selectroletype')}</Text>
                 <View style={styles.roleTypeContainer}>
                   {role === "user" && (
                     <TouchableOpacity
@@ -740,25 +782,25 @@ const ProfileScreen = ({ navigation }) => {
                   
                     
                 {/* Image Uploads */}
-                <Text style={styles.label}>Upload Required Responder ID</Text>
+                <Text style={styles.label}>{t('requiredID')}</Text>
                     
                 <TouchableOpacity onPress={() => pickImageForField(setIdCardFront)} style={styles.uploadButton}>
                   <Text style={styles.uploadButtonText}>
-                    {idCardFront ? "ID Card Front Selected" : "Upload ID Card Front"}
+                    {idCardFront ? t('selectedfrontid') : t('uploadfrontid')}
                   </Text>
                 </TouchableOpacity>
                 {idCardFront && <Image source={{ uri: idCardFront }} style={styles.previewImage}/>}
                     
                 <TouchableOpacity onPress={() => pickImageForField(setIdCardBack)} style={styles.uploadButton}>
                   <Text style={styles.uploadButtonText}>
-                    {idCardBack ? "ID Card Back Selected" : "Upload ID Card Back"}
+                    {idCardBack ? t('selectedbackid') : t('uploadbackid')}
                   </Text>
                 </TouchableOpacity>
                 {idCardBack && <Image source={{ uri: idCardBack }} style={styles.previewImage}/>}
                     
                 <TouchableOpacity onPress={() => pickImageForField(setSelfieWithId)} style={styles.uploadButton}>
                   <Text style={styles.uploadButtonText}>
-                    {selfieWithId ? "Selfie with ID Selected" : "Upload Selfie with ID"}
+                    {selfieWithId ? t('selectedselfieid') : t('uploadselfieid')}
                   </Text>
                 </TouchableOpacity>
                 {idCardFront && <Image source={{ uri: selfieWithId }} style={styles.previewImage}/>}
@@ -766,10 +808,10 @@ const ProfileScreen = ({ navigation }) => {
                 {/* Modal Buttons */}
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.cancelButton} onPress={() => setRoleRequestModalVisible(false)}>
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                    <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.confirmButton} onPress={handleSubmitRoleRequest}>
-                    <Text style={styles.confirmButtonText}>Submit</Text>
+                    <Text style={styles.confirmButtonText}>{t('submit')}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -779,7 +821,7 @@ const ProfileScreen = ({ navigation }) => {
             <Modal animationType="slide" transparent={true} visible={stationSelectionModalVisible}>
               <View style={styles.stationModalContainer}>
                 <View style={styles.stationModalContent}>
-                  <Text style={styles.modalTitle}>Select Station</Text>
+                  <Text style={styles.modalTitle}>{t('selectstation')}</Text>
                   <FlatList
                     data={stations}
                     keyExtractor={(item) => item.id.toString()}
@@ -808,7 +850,7 @@ const ProfileScreen = ({ navigation }) => {
                     }}
                     onPress={() => setStationSelectionModalVisible(false)}
                   >
-                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>Close</Text>
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -832,7 +874,6 @@ const ProfileScreen = ({ navigation }) => {
           }}
         />
 
-
       </KeyboardAwareScrollView>
     </TouchableWithoutFeedback>
   );
@@ -852,6 +893,8 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1,
     height: 40,
+    backgroundColor: "#fff",
+    color: "#000",
   },
   eyeIcon: {
     marginLeft: 10,
@@ -917,6 +960,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: "#fff",
+    color: "#000",
   },
   saveButton: {
     backgroundColor: "#00796b",
@@ -1093,8 +1137,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
+  languageContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 20,
+    width: 50,
+    zIndex: 20,
+    borderRadius: 25,
+    padding: 1,
+  },
+  languagePicker: {
+    color: 'black',
+    width: '100%',
+    height: 40,
+    marginRight: 10,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 25,
+    
+  },
+  languageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0e0e0',
+    color: 'black',
+    borderRadius: 25,
+    paddingHorizontal: 8,
+  },
 });
-
 
 export default ProfileScreen;
 

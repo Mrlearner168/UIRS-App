@@ -243,6 +243,7 @@ const Graph = () => {
             value={selectedFilter}
             onValueChange={value => setSelectedFilter(value)}
             placeholder={{ label: "Filter by Type", value: "All" }}
+            placeholderTextColor="#2c3e50"
             items={[
               { label: "All", value: "All" },
               ...graphData.map(item => ({ label: item.label, value: item.label }))

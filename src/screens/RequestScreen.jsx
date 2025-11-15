@@ -1,10 +1,10 @@
 import { SERVER_URL } from '@env';
 import axios from "axios";
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { Alert, FlatList, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import EncryptedStorage from 'react-native-encrypted-storage';
 import ImageViewing from "react-native-image-viewing";
-
 const RequestScreen = () => {
   const [requests, setRequests] = useState([]);
   const [token, setToken] = useState("");
@@ -17,6 +17,7 @@ const RequestScreen = () => {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const {t} = useTranslation();
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -40,7 +41,7 @@ const RequestScreen = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setRequests(res.data);
-      console.log("Fetched requests:", res.status);
+      console.log("Fetched requests DATA:", res.data);
     } catch (err) {
       console.log(err);
     }
@@ -113,7 +114,7 @@ const RequestScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Role Change Requests</Text>
+      <Text style={styles.heading}>{t('changerequest')}</Text>
 
       {renderStatusButtons()}
 
@@ -123,12 +124,12 @@ const RequestScreen = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Text>Name: {item.user_name}</Text>
-            <Text>Requested Station: {item.station_name}</Text>
-            <Text>Status: {item.status}</Text>
+            <Text>{t('firstname' )}: {item.user_name}</Text>
+            <Text>{t('stationrequested')} {item.station_name}</Text>
+            <Text>{t('status')}{item.status}</Text>
 
             <TouchableOpacity style={[styles.acceptButton, { marginTop: 10 }]} onPress={() => openModal(item)}>
-              <Text style={styles.buttonText}>View Details</Text>
+              <Text style={styles.buttonText}>{t('viewdetails')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -140,23 +141,23 @@ const RequestScreen = () => {
             {selectedRequest && (
               <ScrollView style={{ width: '100%' }}>
                 <Text style={styles.modalTitle}>{selectedRequest.user_name}</Text>
-                <Text style={{ fontWeight: 'bold', marginTop: 5 }}>Role Requested: {selectedRequest.role_requested} </Text>
-                <Text>Station Requested: {selectedRequest.station_name}</Text>
-                <Text>Status: {selectedRequest.status}</Text>
-                <Text>Requested At: {new Date(selectedRequest.created_at).toLocaleString()}</Text>
-                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>ID Card Front:</Text>
+                <Text style={{ fontWeight: 'bold', marginTop: 5 }}>{t('rolerequested')} {selectedRequest.role_requested} </Text>
+                <Text>{t('stationrequested')} {selectedRequest.station_name}</Text>
+                <Text>{t('status')} {selectedRequest.status}</Text>
+                <Text>{t('requestedat')} {new Date(selectedRequest.created_at).toLocaleString()}</Text>
+                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>{t('idcardfront')}</Text>
                 <TouchableOpacity onPress={() => openImageViewer(
                   [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 0)}>
                   <Image source={{ uri: selectedRequest.id_card_front }} style={styles.image} />
                 </TouchableOpacity>
 
-                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>ID Card Back:</Text>
+                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>{t('idcardback')}</Text>
                 <TouchableOpacity onPress={() => openImageViewer(
                   [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 1)}>
                   <Image source={{ uri: selectedRequest.id_card_back }} style={styles.image} />
                 </TouchableOpacity>
 
-                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>Selfie With ID:</Text>
+                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>{t('selfiewithid')}</Text>
                 <TouchableOpacity onPress={() => openImageViewer(
                   [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 2)}>
                   <Image source={{ uri: selectedRequest.selfie_with_id }} style={styles.image} />
@@ -164,15 +165,15 @@ const RequestScreen = () => {
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 20 }}>
                   <TouchableOpacity style={styles.acceptButton} onPress={() => handleAction(selectedRequest, "accepted")}>
-                    <Text style={styles.buttonText}>Accept</Text>
+                    <Text style={styles.buttonText}>{t('acceptrequest')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.declineButton} onPress={() => handleAction(selectedRequest, "declined")}>
-                    <Text style={styles.buttonText}>Decline</Text>
+                    <Text style={styles.buttonText}>{t('declinerequest')}</Text>
                   </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <Text style={{ marginTop: 10, color: 'blue', textAlign: 'center' }}>Close</Text>
+                  <Text style={{ marginTop: 10, color: 'blue', textAlign: 'center' }}>{t('close')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             )}
@@ -193,7 +194,7 @@ const RequestScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
-  heading: { fontSize: 20, fontWeight: "bold", marginBottom: 10 },
+  heading: { fontSize: 20, fontWeight: "bold", marginBottom: 10 , textAlign:"center" , marginBottom: 25},
   card: { backgroundColor: "#f9f9f9", padding: 15, borderRadius: 10, marginBottom: 10 },
   acceptButton: { backgroundColor: '#007BFF', padding: 10, borderRadius: 5, alignItems: 'center', flex:1, marginHorizontal:5 },
   declineButton: { backgroundColor: '#FF0000', padding: 10, borderRadius: 5, alignItems: 'center', flex:1, marginHorizontal:5 },

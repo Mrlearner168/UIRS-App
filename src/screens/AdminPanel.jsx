@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import {
   FlatList,
   Image,
@@ -39,7 +40,7 @@ const AdminPanel = () => {
   const [currentReporters, setCurrentReporters] = useState([]);
   const [pickerVisibleIncidentId, setPickerVisibleIncidentId] = useState(null);
 
-
+  const { t } = useTranslation();
   const intervalRef = useRef(null);
   const isFetchingRef = useRef(false);
   const navigation = useNavigation();
@@ -226,7 +227,6 @@ const AdminPanel = () => {
     setCurrentImageIndex(index);
     setModalVisible(true);
   };
-
   const handleToggleStatus = (status) => {
     const statusMap = {
       cancelled: { color: "red", text: "Alert" },
@@ -255,11 +255,11 @@ const AdminPanel = () => {
       incident.contactInfo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       incident.reporter_name?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
-
+  //console.log("Filtered Incidents:", JSON.stringify(filteredIncidents, null, 2));
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>
-        Incident Reports{" "}
+        {t('head')}{" "}
         <Icon
           name={isOnline ? "wifi" : "wifi-off"}
           size={20}
@@ -269,7 +269,8 @@ const AdminPanel = () => {
 
       <TextInput
         style={styles.searchInput}
-        placeholder="Search incidents..."
+        placeholder={t('search')}
+        placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
@@ -299,7 +300,7 @@ const AdminPanel = () => {
 
       {!isOnline && (
         <Text style={{ textAlign: "center", color: "red" }}>
-          Offline mode: showing cached reports (media unavailable)
+          {t('offline')}(media unavailable)
         </Text>
       )}
 
@@ -318,29 +319,29 @@ const AdminPanel = () => {
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident info</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      This is new Incident Reported ..
+                      {t('newin')}
                     </Text>
                   </View>
                 </TouchableOpacity>
               )}
               <Text style={{ fontSize: 16, marginTop: 10, marginBottom: 10 }}>
-                Reported By: {item.reporter_name || "Unknown"}
+                {t('reportedby')} {item.reporter_name || "Unknown"}
               </Text>
               <TouchableOpacity onPress={() => openGoogleMaps(item.location)}>
                 <Text style={styles.locationText}>
-                  Location: {item.readable_location || item.readableLocation || item.location}
+                  {t('location')} {item.readable_location || item.readableLocation || item.location}
                 </Text>
               </TouchableOpacity>
-              <Text>Incident Type: {item.incidentType}</Text>
+              <Text>{t('incidenttype')} {item.incidentType}</Text>
               { item.incidentType !== "Others" && (
                 <Text>Sub-Type: {item.subType || "N/A"}</Text>
               )}
               { item.incidentType === "Others" && (
-              <Text>Description: {item.incidentDescription}</Text>
+              <Text>{t('description')} {item.incidentDescription}</Text>
               )}
-              <Text>Time: {item.incidentTime}</Text>
+              <Text>{t('time')} {item.incidentTime}</Text>
               <Text style={styles.date}>
-                Date Reported:{' '}
+                {t('datereported')}{' '}
                 {new Date(item.created_at).toLocaleDateString('en-US', {
                   month: 'long',
                   day: 'numeric',
@@ -357,10 +358,10 @@ const AdminPanel = () => {
                 }}
               >
                 <Text style={{ color: "blue", textDecorationLine: "underline" }}>
-                  Contact: {item.contactInfo || "No contact"}
+                  {t('contact')} {item.contactInfo || "No contact"}
                 </Text>
               </TouchableOpacity>
-              <Text>Status:</Text>
+              <Text>{t('status')}</Text>
               <View
                 style={{
                   backgroundColor:
@@ -385,16 +386,16 @@ const AdminPanel = () => {
                 }}
               >
                 <Text style={{ color: "blue", textDecorationLine: "underline" }}>
-                  Report Count: {reportCounts.counts ? reportCounts.counts[item.id] : 0}
+                  {t('reportcount')} {reportCounts.counts ? reportCounts.counts[item.id] : 0}
                 </Text>
               </TouchableOpacity>
               <Text>
-                Total Reports (%): {reportCounts.percentages ? `${reportCounts.percentages[item.id]}%` : "0%"}
+                {t('totalrep')} (%): {reportCounts.percentages ? `${reportCounts.percentages[item.id]}%` : "0%"}
               </Text>
 
               {item.stations && item.status !== "cancelled" && item.stations.length > 0 && (
                 <View style={{ marginTop: 8 }}>
-                  <Text style={{ fontWeight: "bold" }}>Assigned Stations:</Text>
+                  <Text style={{ fontWeight: "bold" }}>{t('assignstation')}</Text>
                             
                   {/* Custom Picker */}
                   <TouchableOpacity
@@ -405,7 +406,7 @@ const AdminPanel = () => {
                       {(item.selectedStation &&
                         item.stations.find(st => st.station_id_str === item.selectedStation)?.station_name) ||
                         item.stations.find(st => st.status === "assigned")?.station_name ||
-                        "Stations are still pending......"}
+                        t('pending')}
                     </Text>
                     <Icon name="arrow-drop-down" size={24} color="#555" />
                   </TouchableOpacity>
@@ -488,16 +489,16 @@ const AdminPanel = () => {
                           }}
                         >
                           <Text style={{ color: "blue", textDecorationLine: "underline" }}>
-                            Contact: {selected.contact || "No contact"}
+                            {t('contact')} {selected.contact || t('nocontact')}
                           </Text>
                         </TouchableOpacity>
                         
                         <Text>
-                          Responders:{" "}
+                          {t('responders')}{" "}
                           {item.responder_details
                             ?.filter(resp => resp.station_id === selected.station_id)
                             .map(resp => `${resp.responder_name} (${resp.status})`)
-                            .join(", ") || "No responders"}
+                            .join(", ") || t('noresponders')}
                         </Text>
                       </View>
                     );
@@ -516,7 +517,7 @@ const AdminPanel = () => {
                   })
                 }
               >
-                <Text style={styles.trackButtonText}>Track Responders Location</Text>
+                <Text style={styles.trackButtonText}>{t('tracklocation')}</Text>
               </TouchableOpacity>
               )}
               {item.status === "cancelled" && (
@@ -524,7 +525,7 @@ const AdminPanel = () => {
                   <View style={styles.cancelNoticeBox}>
                     <Text style={styles.cancelNoticeTitle}>Incident Cancelled</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      These Incident cancelled for a Reason
+                      {t('cancelled')}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -534,7 +535,7 @@ const AdminPanel = () => {
                   <View style={styles.doneNoticeBox}>
                     <Text style={styles.doneNoticeTitle}>Incident Done</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      These Incident is Already Done
+                      {t('done')}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -595,7 +596,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 14 },
   heading: { fontSize: 22, fontWeight: "bold", marginBottom: 20, marginTop: 18, textAlign: "center" },
   noReportsText: { textAlign: "center", marginTop: 30, fontSize: 20 },
-  searchInput: { borderLeftWidth: 3, borderRightWidth: 3, height: 40, borderColor: "gray", borderWidth: 1, marginBottom: 10, marginLeft: 10, marginRight: 10, paddingHorizontal: 20, borderRadius: 5 },
+  searchInput: { borderLeftWidth: 3, borderRightWidth: 3, height: 40, borderColor: "gray", borderWidth: 1, marginBottom: 10, marginLeft: 10, marginRight: 10, paddingHorizontal: 20, borderRadius: 5 , backgroundColor: "#f0f0f0" , color: "#000" },
   card: { backgroundColor: "#f9f9f9", padding: 15, borderRadius: 10, marginBottom: 10 },
   mediaContainer: { flexDirection: "row", flexWrap: "wrap", marginVertical: 10 },
   image: { width: 100, height: 100, resizeMode: "cover", margin: 5 },
@@ -635,7 +636,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#f2f2f2",
-    marginTop: 5
+    marginTop: 5,
+    color: "#000",
+    
   },
   ongoingNoticeBox: {
   backgroundColor: '#FFF4E5',
