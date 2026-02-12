@@ -1,10 +1,12 @@
 import { SERVER_URL } from '@env';
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { Image as ExpoImage } from 'expo-image';
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from 'react-i18next';
-import { Alert, FlatList, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import EncryptedStorage from 'react-native-encrypted-storage';
 import ImageViewing from "react-native-image-viewing";
+import Icon from "react-native-vector-icons/MaterialIcons";
 const RequestScreen = () => {
   const [requests, setRequests] = useState([]);
   const [token, setToken] = useState("");
@@ -17,7 +19,33 @@ const RequestScreen = () => {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [imageLoadingState, setImageLoadingState] = useState({});
   const {t} = useTranslation();
+  const pendingRequestsRef = useRef({}); // Prevent duplicate requests
+
+  // Image loading and error handling
+  const handleImageLoad = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: false, loaded: true }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []); // Empty dependency array
+
+  const handleImageError = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: true, loaded: false }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []);
+
+  const setImageLoading = useCallback((uri, loading) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { ...prev[uri], loading }
+    }));
+  }, []);
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -145,22 +173,106 @@ const RequestScreen = () => {
                 <Text>{t('stationrequested')} {selectedRequest.station_name}</Text>
                 <Text>{t('status')} {selectedRequest.status}</Text>
                 <Text>{t('requestedat')} {new Date(selectedRequest.created_at).toLocaleString()}</Text>
-                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>{t('idcardfront')}</Text>
-                <TouchableOpacity onPress={() => openImageViewer(
-                  [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 0)}>
-                  <Image source={{ uri: selectedRequest.id_card_front }} style={styles.image} />
+                <Text style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 10 }}>{t('idcardfront')}</Text>
+                <TouchableOpacity 
+                  style={styles.imageContainer}
+                  onPress={() => openImageViewer(
+                    [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 0)}>
+                  {(() => {
+                    const imageState = imageLoadingState[selectedRequest.id_card_front] || { loading: true, error: false };
+                    return (
+                      <>
+                        {imageState.loading && (
+                          <View style={styles.imageLoadingContainer}>
+                            <ActivityIndicator size="large" color="#007BFF" />
+                          </View>
+                        )}
+                        {imageState.error ? (
+                          <View style={[styles.image, styles.imageError]}>
+                            <Icon name="broken-image" size={50} color="#999" />
+                          </View>
+                        ) : (
+                          <ExpoImage 
+                            source={{ uri: selectedRequest.id_card_front }}
+                            style={styles.image}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            onLoad={() => handleImageLoad(selectedRequest.id_card_front)}
+                            onError={() => handleImageError(selectedRequest.id_card_front)}
+                            onLoadStart={() => setImageLoading(selectedRequest.id_card_front, true)}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                 </TouchableOpacity>
 
-                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>{t('idcardback')}</Text>
-                <TouchableOpacity onPress={() => openImageViewer(
-                  [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 1)}>
-                  <Image source={{ uri: selectedRequest.id_card_back }} style={styles.image} />
+                <Text style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 10 }}>{t('idcardback')}</Text>
+                <TouchableOpacity 
+                  style={styles.imageContainer}
+                  onPress={() => openImageViewer(
+                    [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 1)}>
+                  {(() => {
+                    const imageState = imageLoadingState[selectedRequest.id_card_back] || { loading: true, error: false };
+                    return (
+                      <>
+                        {imageState.loading && (
+                          <View style={styles.imageLoadingContainer}>
+                            <ActivityIndicator size="large" color="#007BFF" />
+                          </View>
+                        )}
+                        {imageState.error ? (
+                          <View style={[styles.image, styles.imageError]}>
+                            <Icon name="broken-image" size={50} color="#999" />
+                          </View>
+                        ) : (
+                          <ExpoImage 
+                            source={{ uri: selectedRequest.id_card_back }}
+                            style={styles.image}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            onLoad={() => handleImageLoad(selectedRequest.id_card_back)}
+                            onError={() => handleImageError(selectedRequest.id_card_back)}
+                            onLoadStart={() => setImageLoading(selectedRequest.id_card_back, true)}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                 </TouchableOpacity>
 
-                <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>{t('selfiewithid')}</Text>
-                <TouchableOpacity onPress={() => openImageViewer(
-                  [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 2)}>
-                  <Image source={{ uri: selectedRequest.selfie_with_id }} style={styles.image} />
+                <Text style={{ fontWeight: 'bold', marginTop: 10, marginBottom: 10 }}>{t('selfiewithid')}</Text>
+                <TouchableOpacity 
+                  style={styles.imageContainer}
+                  onPress={() => openImageViewer(
+                    [selectedRequest.id_card_front, selectedRequest.id_card_back, selectedRequest.selfie_with_id], 2)}>
+                  {(() => {
+                    const imageState = imageLoadingState[selectedRequest.selfie_with_id] || { loading: true, error: false };
+                    return (
+                      <>
+                        {imageState.loading && (
+                          <View style={styles.imageLoadingContainer}>
+                            <ActivityIndicator size="large" color="#007BFF" />
+                          </View>
+                        )}
+                        {imageState.error ? (
+                          <View style={[styles.image, styles.imageError]}>
+                            <Icon name="broken-image" size={50} color="#999" />
+                          </View>
+                        ) : (
+                          <FastImage 
+                            source={{ uri: selectedRequest.selfie_with_id }}
+                            style={styles.image}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            onLoad={() => handleImageLoad(selectedRequest.selfie_with_id)}
+                            onError={() => handleImageError(selectedRequest.selfie_with_id)}
+                            onLoadStart={() => setImageLoading(selectedRequest.selfie_with_id, true)}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                 </TouchableOpacity>
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 20 }}>
@@ -202,7 +314,32 @@ const styles = StyleSheet.create({
   modalContainer: { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'rgba(0,0,0,0.5)' },
   modalContent: { width:'90%', maxHeight:'80%', backgroundColor:'#fff', padding:20, borderRadius:10, alignItems:'center' },
   modalTitle: { fontSize:18, fontWeight:'bold', marginBottom:10, textAlign:'center' },
-  image: { width:'100%', height:200, marginBottom:15, borderRadius:10, resizeMode:'contain' },
+  image: { width:'100%', height:250, marginBottom:15, borderRadius:10, resizeMode:'contain' },
+  imageContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 250,
+    marginBottom: 15,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0'
+  },
+  imageLoadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    zIndex: 10
+  },
+  imageError: {
+    backgroundColor: '#ffe8e8',
+    justifyContent: 'center',
+    alignItems: 'center'
+  }
 });
 
 export default RequestScreen;

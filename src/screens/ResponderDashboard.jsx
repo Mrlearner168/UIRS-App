@@ -1,14 +1,16 @@
 import { SERVER_URL } from '@env';
 import NetInfo from "@react-native-community/netinfo";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import axios from "axios";
+import { Image as ExpoImage } from 'expo-image';
 import * as Location from "expo-location";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
-  Image,
   Linking,
   RefreshControl,
   SafeAreaView,
@@ -27,24 +29,92 @@ import { useGlobalIncidentListener } from '../hook/useGlobalIncidentListener';
 const ResponderViewList = () => {
   const [incidents, setIncidents] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [resModalVisible, setResModalVisible] = useState(false);
-  const [isModalVisible, setModalVisible] = useState(false);
+ //const [isModalVisible, setModalVisible] = useState(false);
   const [stationId, setStationId] = useState(null);
   const [isOnline, setIsOnline] = useState(true);
   const [filterStatus, setFilterStatus] = useState("alert");
-  const [userRole, setUserRole] = useState(""); // role of current user
-  const [respondersList, setRespondersList] = useState([]); 
-  const [incidentId, setIncidentId] = useState(null); // to store current incident ID
+  const [userRole, setUserRole] = useState("");
+  const [respondersList, setRespondersList] = useState([]);
+  const [incidentId, setIncidentId] = useState(null);
   const [is_head, setIsHead] = useState(false);
-  const [user_idF , setUser_id] = useState(null)
-  const { t, i18n } = useTranslation();
+  const [user_idF , setUser_id] = useState(null);
+  const [imageLoadingState, setImageLoadingState] = useState({});
+  const [fullImageViewerVisible, setFullImageViewerVisible] = useState(false);
+  const [loadingTipIndex, setLoadingTipIndex] = useState(0);
+  const { t,} = useTranslation();
+  const pendingRequestsRef = useRef({});
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const navigation = useNavigation();
+
+  const loadingTips = [
+    t('loading') || 'Loading incidents...',
+    'Fetching latest reports...',
+    'Processing station data...',
+    'Organizing incidents...'
+  ];
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => setIsOnline(state.isConnected));
     return () => unsubscribe();
+  }, []);
+
+  // Enhanced loading animation
+  useEffect(() => {
+    if (!loading) return;
+    const pulseAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.05,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseAnim.start();
+    return () => pulseAnim.stop();
+  }, [loading, scaleAnim]);
+
+  // Cycle loading tips
+  useEffect(() => {
+    if (!loading) return;
+    const tipInterval = setInterval(() => {
+      setLoadingTipIndex(prev => (prev + 1) % loadingTips.length);
+    }, 2000);
+    return () => clearInterval(tipInterval);
+  }, [loading, loadingTips.length]);
+
+  // Image loading and error handling
+  const handleImageLoad = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: false, loaded: true }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []); // Empty dependency array
+
+  const handleImageError = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: true, loaded: false }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []);
+
+  const setImageLoading = useCallback((uri, loading) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { ...prev[uri], loading }
+    }));
   }, []);
 
   useEffect(() => {
@@ -91,12 +161,14 @@ const ResponderViewList = () => {
   };
 
   const fetchIncidentsWithAddresses = useCallback(async () => {
+    setLoading(true);
     setRefreshing(true);
     try {
       if (!isOnline) {
         const cached = await EncryptedStorage.getItem("cached_responder_incidents");
         if (cached) setIncidents(JSON.parse(cached));
         setRefreshing(false);
+        setLoading(false);
         return;
       }
     
@@ -141,14 +213,34 @@ const ResponderViewList = () => {
       Alert.alert("Error", "Failed to fetch incidents.");
     } finally {
       setRefreshing(false);
+      setLoading(false);
     }
   }, [isOnline]);
   
-  // Hook for auto-fetch when screen focused
+  // Hook for auto-fetch when screen focused and verify token
   useFocusEffect(
     useCallback(() => {
-      fetchIncidentsWithAddresses();
-    }, [fetchIncidentsWithAddresses])
+      const verifyTokenAndFetch = async () => {
+        try {
+          const token = await EncryptedStorage.getItem('token');
+          if (!token) {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+            return;
+          }
+          await fetchIncidentsWithAddresses();
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        }
+      };
+      verifyTokenAndFetch();
+    }, [fetchIncidentsWithAddresses, navigation])
   );
 
   // Pull down refresh handler
@@ -186,10 +278,15 @@ const ResponderViewList = () => {
     }
   };
 
-  const openImageModal = (mediaArray, index) => {
-    setSelectedMedia(mediaArray);
-    setCurrentImageIndex(index);
-    setModalVisible(true);
+  //const openImageModal = (mediaArray, index) => {
+  //  setSelectedMedia(mediaArray);
+  //  setCurrentImageIndex(index);
+  //  setModalVisible(true);
+  //};
+  const openGoogleMaps = (location) => {
+    const encodedLocation = encodeURIComponent(location);
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodedLocation}`;
+    Linking.openURL(url).catch((err) => console.log("Failed to open Google Maps:", err));
   };
 
   const handleToggleStatus = (status) => {
@@ -205,7 +302,9 @@ const ResponderViewList = () => {
     return statusMap[status] || { color: "gray", text: "Unknown" };
   };
 
-  const filteredIncidents = incidents
+  // Memoize filtered incidents to prevent unnecessary map operations
+  const filteredIncidents = useMemo(() => 
+    incidents
     .filter(incident =>
       [incident.incidentType, incident.location, incident.incidentDescription, incident.contactInfo]
         .join(" ")
@@ -223,7 +322,10 @@ const ResponderViewList = () => {
       if (filterStatus === "alert") return incident.status === "alert" && incident.responder_status !== "done";
 
       return incident.status === filterStatus;
-    });
+    })
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    [incidents, searchQuery, filterStatus]
+  );
 
 
   const countByStatus = incidents.reduce(
@@ -270,8 +372,9 @@ const ResponderViewList = () => {
   //console.log("respondersList:", JSON.stringify(respondersList, null, 2));
   const totalReports = incidents.reduce((sum, i) => sum + (i.report_count || 0), 0);
   //console.log("availableResponders:", availableResponders);
-  //console.log("filtered incidents:", JSON.stringify(filteredIncidents, null , 2));
-
+ // console.log("filtered incidents:", JSON.stringify(filteredIncidents, null , 2));
+  
+  //console.log("stationId:", stationId);
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>
@@ -314,15 +417,27 @@ const ResponderViewList = () => {
       </View>
 
       <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
-        <FlatList
-          data={filteredIncidents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))}
-        keyExtractor={(item, index) => index.toString()}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#007bff"]}
-            tintColor="#007bff"
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Animated.View style={[styles.loadingIconWrapper, { transform: [{ scale: scaleAnim }] }]}>
+              <ActivityIndicator size="large" color="#007BFF" />
+            </Animated.View>
+            <Text style={styles.loadingMainText}>Loading Incidents</Text>
+            <Text style={styles.loadingTipText}>{loadingTips[loadingTipIndex]}</Text>
+            <View style={styles.loadingDotsContainer}>
+              {[0, 1, 2].map((dot) => <View key={dot} style={styles.loadingDot} />)}
+            </View>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredIncidents}
+            keyExtractor={(item, index) => index.toString()}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={["#007bff"]}
+                tintColor="#007bff"
           />
         } 
         renderItem={({ item }) => {
@@ -332,11 +447,7 @@ const ResponderViewList = () => {
           );
 
           const currentStationStatus = item.incidents_station_status[stationId]; // stationId from profile
-
           const stationStatus = currentStation?.status || "unassigned";
-          //const stationResponders = item.stations?.find(s => s.station_id === stationId)?.assigned_responders || [];
-          //const allDeleted = stationResponders.length > 0 && stationResponders.every(r => r.is_deleted === true);
-          //console.log("stationResponders for incident", item.id, ":", JSON.stringify(stationResponders, null, 2));
 
           return (
             <TouchableOpacity>
@@ -344,9 +455,11 @@ const ResponderViewList = () => {
                 <Text style={{ fontSize: 16, marginTop: 10, marginBottom: 10 }}>
                  {t('reportedby')} {item.reporter_name || "Unknown"}
                 </Text>
-                <Text>
-                  {t('location')}{item.readable_location || item.readableAddress || "Fetching..."}
-                </Text>
+                <TouchableOpacity onPress={() => openGoogleMaps(item.location)}>
+                  <Text style={styles.locationText}>
+                    {t('location')} {item.readable_location || item.readableLocation || item.location}
+                  </Text>
+                </TouchableOpacity>
                 <Text>{t('incidenttype')}{item.incidentType}</Text>
                 {item.incidentType !== "Others" && (
                   <Text>{t('subtype')} {item.subType || "N/A"}</Text>
@@ -370,16 +483,59 @@ const ResponderViewList = () => {
                   {t('contact')} {item.contactInfo}
                 </Text>
                 <View style={styles.mediaContainer}>
-                  {item.media?.length ? (
-                    item.media.map((media, i) => (
-                      <TouchableOpacity key={i} onPress={() => openImageModal(item.media, i)}>
-                        <Image source={{ uri: media }} style={styles.image} />
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    <Text>No media available</Text>
-                  )}
-                </View>
+                <Text style={styles.mediaTitle}>
+                  📷 Media Evidence ({item.media?.length || 0} files)
+                </Text>
+                {item.media && item.media.length > 0 ? (
+                  <View style={styles.mediaGrid}>
+                    {(typeof item.media === 'string' ? item.media.split(',').map(u => u.trim()) : item.media).map((uri, i) => {
+                      const imageState = imageLoadingState[uri] || { loading: true, error: false, loaded: false };
+                      const isError = imageState.error;
+                      const isLoading = imageState.loading && !imageState.loaded;
+
+                      return (
+                        <TouchableOpacity 
+                          key={i} 
+                          style={[styles.imageWrapper, isError && styles.imageErrorWrapper]}
+                          onPress={() => {
+                            if (!isError) {
+                              const mediaArray = typeof item.media === 'string' ? item.media.split(',').map(u => u.trim()) : item.media;
+                              setSelectedMedia(mediaArray.filter(m => !imageLoadingState[m]?.error));
+                              setCurrentImageIndex(mediaArray.filter(m => !imageLoadingState[m]?.error).indexOf(uri));
+                              setFullImageViewerVisible(true);
+                            }
+                          }}
+                          disabled={isError}
+                        >
+                          {isLoading && (
+                            <View style={styles.imageLoadingContainer}>
+                              <ActivityIndicator size="large" color="#007BFF" />
+                            </View>
+                          )}
+                          {!isError ? (
+                            <ExpoImage
+                              source={{ uri: uri }}
+                              style={[styles.image, isLoading && { opacity: 0.5 }]}
+                              contentFit="cover"
+                              cachePolicy="memory-disk"
+                              onLoad={() => handleImageLoad(uri)}
+                              onError={() => handleImageError(uri)}
+                              onLoadStart={() => setImageLoading(uri, true)}
+                            />
+                          ) : (
+                            <View style={styles.imageErrorView}>
+                              <Icon name="image-broken-variant" size={40} color="#999" />
+                            </View>
+                          )}
+                          <Text style={styles.imageIndex}>{i + 1}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={styles.noMediaText}>No media available</Text>
+                )}
+              </View>
                 {(item.status === "ongoing" || item.status === "alert") &&
                   item.responder_status !== "done" && !is_head && userRole === "responder_personnel" && (
                   <View style={styles.ongoingNoticeBox}>
@@ -427,12 +583,12 @@ const ResponderViewList = () => {
                     </Text>
                   </View>
                 )}
-
-
-                {item.status === "alert" && item.responder_status !== "declined" && 
-                  (userRole === "responder_head" || (userRole === "responder_personnel" && is_head)) &&
-                  (item.user_id !== user_idF)
-                  &&(
+                {item.status === "alert" &&
+                item.responder_status !== "declined" &&
+                (userRole === "responder_head" || (userRole === "responder_personnel" && is_head)) &&
+                (item.user_id !== user_idF) &&
+                // check if your station exists and is unassigned
+                item.incidents_station_status[stationId] !== "unassigned" && (
                   <TouchableOpacity>
                     <View style={styles.doneNoticeBox}>
                       <Text style={styles.doneNoticeTitle}>Incident Alert</Text>
@@ -442,6 +598,24 @@ const ResponderViewList = () => {
                     </View>
                   </TouchableOpacity>
                 )}
+
+                {item.status === "alert" &&
+                item.responder_status !== "declined" &&
+                (userRole === "responder_head" || (userRole === "responder_personnel" && is_head)) &&
+                (item.user_id !== user_idF) &&
+                 // check if your station exists and is unassigned
+                item.incidents_station_status[stationId] === "unassigned" && (
+                  <TouchableOpacity>
+                    <View style={styles.UnnoticeBox}>
+                      <Text style={styles.UnnoticeTitle}>Incident Unnoticed</Text>
+                      <Text style={styles.UnnoticeText}>
+                        Incident not acknowledged / Unnotice
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+
                 {item.status === "ongoing" && 
                   item.responder_status !== "declined" && 
                   item.responder_status !== "done" && 
@@ -486,7 +660,11 @@ const ResponderViewList = () => {
                         {item.status !== "done" && item.responder_status !== "done" && stationStatus === "assigned" && (
                           <TouchableOpacity
                             style={[styles.trackButton, styles.equalButtonSize]}
-                            onPress={() => handleLocationClick(item.location)}
+                            onPress={() => navigation.navigate('TrackLocation', { 
+                            incidentId: item.id,
+                            incidentLocation: item.location,
+                            stationId: item.station_ids
+                            })}
                           >
                             <Text style={styles.buttonText}>Track</Text>
                           </TouchableOpacity>
@@ -532,11 +710,21 @@ const ResponderViewList = () => {
           );
           }}
         />
+        )}
         <ImageViewing
           images={selectedMedia.map(uri => ({ uri }))}
           imageIndex={currentImageIndex}
-          visible={isModalVisible}
-          onRequestClose={() => setModalVisible(false)}
+          visible={fullImageViewerVisible}
+          onRequestClose={() => setFullImageViewerVisible(false)}
+          onImageIndexChange={(index) => setCurrentImageIndex(index)}
+          backgroundColor="rgba(0, 0, 0, 0.95)"
+          FooterComponent={({ imageIndex }) => (
+            <View style={styles.imageFooter}>
+              <Text style={styles.imageFooterText}>
+                {imageIndex + 1} / {selectedMedia.length}
+              </Text>
+            </View>
+          )}
         />
         <RespondersModal
           visible={resModalVisible}
@@ -561,8 +749,101 @@ const styles = StyleSheet.create({
   filterText: { color: '#000' },
   card: { backgroundColor: "#f9f9f9", padding: 14, borderRadius: 16, marginBottom: 18 },
   clickableText: { color: "blue", textDecorationLine: "underline" },
-  mediaContainer: { flexDirection: 'row', flexWrap: 'wrap', marginVertical: 10 },
-  image: { width: 100, height: 100, margin: 5, borderRadius: 10 },
+  mediaContainer: { 
+    marginVertical: 15,
+    backgroundColor: "#fafafa",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e8e8e8"
+  },
+  mediaTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 12
+  },
+  mediaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  imageWrapper: {
+    position: "relative",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#e8e8e8",
+    borderWidth: 2,
+    borderColor: "#d0d0d0"
+  },
+  imageErrorWrapper: {
+    borderColor: "#ff6b6b",
+    backgroundColor: "#ffe8e8"
+  },
+  image: { 
+    width: 150, 
+    height: 150, 
+    resizeMode: "cover"
+  },
+  imageLoadingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    zIndex: 10
+  },
+  imageErrorView: {
+    width: 150,
+    height: 150,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#ffe8e8"
+  },
+  imageIndex: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    color: "#fff",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    fontSize: 12,
+    fontWeight: "bold"
+  },
+  noMediaText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#999"
+  },
+  imageFooter: {
+    paddingBottom: 20,
+    alignItems: "center"
+  },
+  imageFooterText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  moreImagesOverlay: {
+    width: 100,
+    height: 100,
+    margin: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+  },
+  moreImagesText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   trackButton: { backgroundColor: "#007bff", padding: 10, borderRadius: 10 },
   buttonText: { color: "#fff", fontWeight: "bold" },
   statusToggle: { padding: 10, borderRadius: 5 },
@@ -716,7 +997,65 @@ ongoingNoticeText: {
   color: '#555',
   lineHeight: 20,
 },
+UnnoticeBox: {
+  backgroundColor: '#FFF4E5',
+  borderLeftWidth: 5,
+  borderLeftColor: 'rgb(153, 133, 133)',
+  padding: 10,
+  borderRadius: 8,
+  marginTop: 8,
+},
+UnnoticeText: {
+  fontSize: 14,
+  color: '#555',
+  lineHeight: 20,
+},  
 
+UnnoticeTitle: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  color: 'rgb(115, 101, 101)',
+  marginBottom: 4,
+},
+loadingContainer: {
+  flex: 1,
+  backgroundColor: "#f8f9fa",
+  justifyContent: "center",
+  alignItems: "center",
+},
+loadingIconWrapper: {
+  marginBottom: 24,
+  justifyContent: "center",
+  alignItems: "center",
+},
+loadingMainText: {
+  fontSize: 24,
+  fontWeight: "700",
+  color: "#1a1a1a",
+  marginBottom: 12,
+  textAlign: "center",
+},
+loadingTipText: {
+  fontSize: 16,
+  color: "#007BFF",
+  textAlign: "center",
+  marginBottom: 20,
+  fontWeight: "500",
+  minHeight: 24,
+},
+loadingDotsContainer: {
+  flexDirection: "row",
+  justifyContent: "center",
+  gap: 8,
+  marginTop: 12,
+},
+loadingDot: {
+  width: 8,
+  height: 8,
+  borderRadius: 4,
+  backgroundColor: "#007BFF",
+  opacity: 0.5,
+}
 });
 
 export default ResponderViewList;

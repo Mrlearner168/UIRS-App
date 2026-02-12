@@ -1,30 +1,23 @@
+import messaging from '@react-native-firebase/messaging';
 import { registerRootComponent } from 'expo';
+import 'react-native-gesture-handler';
 import App from './App';
 
-import notifee, { AndroidImportance } from '@notifee/react-native';
-import messaging from '@react-native-firebase/messaging';
-
-// Handle FCM in background/quit state
-messaging().setBackgroundMessageHandler(async remoteMessage => {
-  console.log('FCM background:', remoteMessage);
-
-  if (!remoteMessage.notification) {
-    await notifee.displayNotification({
-      title: remoteMessage.data?.title || 'UIRS',
-      body: remoteMessage.data?.body || 'New background message',
-      android: {
-        channelId: 'default',
-        importance: AndroidImportance.HIGH,
-        pressAction: { id: 'default' },
-      },
-    });
-  }
+/**
+ * BACKGROUND DATA HANDLER
+ * This handles the logic/data when the app is killed or in background.
+ * Your Kotlin code is already showing the notification, so we 
+ * ONLY use this for data processing or logging.
+ */
+messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    console.log('FCM Data received in JS background:', remoteMessage.data);
+    
+    if (remoteMessage.data?.type === 'emergency') {
+        // Example: You could save to a local database here 
+        // or set a flag in storage.
+        // DO NOT show a notification here.
+    }
 });
 
-// Required: Notifee background event handler (taps, dismiss)
-notifee.onBackgroundEvent(async ({ type, detail }) => {
-  console.log('Notifee background event:', type, detail);
-});
-
-// Register main app
+// Register the main App component
 registerRootComponent(App);

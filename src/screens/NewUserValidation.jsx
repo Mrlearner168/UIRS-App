@@ -1,18 +1,20 @@
 import { SERVER_URL } from '@env';
-import { useEffect, useState } from 'react';
+import { Image as ExpoImage } from 'expo-image';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
 import ImageViewing from 'react-native-image-viewing';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const NewUserValidation = ({ navigation }) => {
   const [users, setUsers] = useState([]);
@@ -22,7 +24,33 @@ const NewUserValidation = ({ navigation }) => {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [imageLoadingState, setImageLoadingState] = useState({});
   const {t} = useTranslation();
+  const pendingRequestsRef = useRef({}); // Prevent duplicate requests
+
+  // Image loading and error handling
+  const handleImageLoad = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: false, loaded: true }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []); // Empty dependency array
+
+  const handleImageError = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: true, loaded: false }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []);
+
+  const setImageLoading = useCallback((uri, loading) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { ...prev[uri], loading }
+    }));
+  }, []);
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -55,6 +83,8 @@ const NewUserValidation = ({ navigation }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
+      console.log(token);
+      console.log('All users data:', JSON.stringify(data, null, 2));
       const pendingUsers = data.filter(user => user.status === 'inactive');
       setUsers(pendingUsers);
       console.log('Fetched new users:', pendingUsers);
@@ -148,8 +178,36 @@ const NewUserValidation = ({ navigation }) => {
             <View style={styles.credentialItem}>
               <Text style={styles.credentialLabel}>{t('idcardfront')}</Text>
               {item.id_front_path ? (
-                <TouchableOpacity onPress={() => openImageViewer(images, 0)}>
-                  <Image source={{ uri: item.id_front_path }} style={styles.image} />
+                <TouchableOpacity 
+                  style={styles.imageWrapper}
+                  onPress={() => openImageViewer(images, 0)}>
+                  {(() => {
+                    const imageState = imageLoadingState[item.id_front_path] || { loading: true, error: false };
+                    return (
+                      <>
+                        {imageState.loading && (
+                          <View style={styles.imageLoadingContainer}>
+                            <ActivityIndicator size="large" color="#007BFF" />
+                          </View>
+                        )}
+                        {imageState.error ? (
+                          <View style={[styles.image, styles.imageError]}>
+                            <Icon name="broken-image" size={40} color="#999" />
+                          </View>
+                        ) : (
+                          <ExpoImage 
+                            source={{ uri: item.id_front_path }}
+                            style={styles.image}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            onLoad={() => handleImageLoad(item.id_front_path)}
+                            onError={() => handleImageError(item.id_front_path)}
+                            onLoadStart={() => setImageLoading(item.id_front_path, true)}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.imagePlaceholder}>{t('noimage')}</Text>
@@ -159,8 +217,36 @@ const NewUserValidation = ({ navigation }) => {
             <View style={styles.credentialItem}>
               <Text style={styles.credentialLabel}>{t('idcardback')}</Text>
               {item.id_back_path ? (
-                <TouchableOpacity onPress={() => openImageViewer(images, 1)}>
-                  <Image source={{ uri: item.id_back_path }} style={styles.image} />
+                <TouchableOpacity 
+                  style={styles.imageWrapper}
+                  onPress={() => openImageViewer(images, 1)}>
+                  {(() => {
+                    const imageState = imageLoadingState[item.id_back_path] || { loading: true, error: false };
+                    return (
+                      <>
+                        {imageState.loading && (
+                          <View style={styles.imageLoadingContainer}>
+                            <ActivityIndicator size="large" color="#007BFF" />
+                          </View>
+                        )}
+                        {imageState.error ? (
+                          <View style={[styles.image, styles.imageError]}>
+                            <Icon name="broken-image" size={40} color="#999" />
+                          </View>
+                        ) : (
+                          <ExpoImage 
+                            source={{ uri: item.id_back_path }}
+                            style={styles.image}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            onLoad={() => handleImageLoad(item.id_back_path)}
+                            onError={() => handleImageError(item.id_back_path)}
+                            onLoadStart={() => setImageLoading(item.id_back_path, true)}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.imagePlaceholder}>{t('noimage')}</Text>
@@ -170,8 +256,36 @@ const NewUserValidation = ({ navigation }) => {
             <View style={styles.credentialItem}>
               <Text style={styles.credentialLabel}>{t('selfiewithid')}</Text>
               {item.selfie_path ? (
-                <TouchableOpacity onPress={() => openImageViewer(images, 2)}>
-                  <Image source={{ uri: item.selfie_path }} style={styles.image} />
+                <TouchableOpacity 
+                  style={styles.imageWrapper}
+                  onPress={() => openImageViewer(images, 2)}>
+                  {(() => {
+                    const imageState = imageLoadingState[item.selfie_path] || { loading: true, error: false };
+                    return (
+                      <>
+                        {imageState.loading && (
+                          <View style={styles.imageLoadingContainer}>
+                            <ActivityIndicator size="large" color="#007BFF" />
+                          </View>
+                        )}
+                        {imageState.error ? (
+                          <View style={[styles.image, styles.imageError]}>
+                            <Icon name="broken-image" size={40} color="#999" />
+                          </View>
+                        ) : (
+                          <ExpoImage 
+                            source={{ uri: item.selfie_path }}
+                            style={styles.image}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            onLoad={() => handleImageLoad(item.selfie_path)}
+                            onError={() => handleImageError(item.selfie_path)}
+                            onLoadStart={() => setImageLoading(item.selfie_path, true)}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.imagePlaceholder}>{t('noimage')}</Text>
@@ -212,7 +326,10 @@ const NewUserValidation = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.title}>{t('pendinguserver')}</Text>
       {loading ? (
-        <Text>{t('loading')}</Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#007BFF" />
+          <Text style={{ marginTop: 12, color: '#666', fontSize: 14 }}>{t('loading') || 'Loading...'}</Text>
+        </View>
       ) : (
         <FlatList
           data={users}
@@ -241,6 +358,30 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: 100, height: 100, borderRadius: 8, backgroundColor: '#e0e0e0',
     textAlign: 'center', textAlignVertical: 'center', color: '#888'
+  },
+  imageWrapper: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0'
+  },
+  imageLoadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    zIndex: 10
+  },
+  imageError: {
+    backgroundColor: '#ffe8e8',
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   mediaContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginVertical: 10 },
   buttonText: { color: '#fff', fontWeight: 'bold' },

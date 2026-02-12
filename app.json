@@ -5,7 +5,6 @@
     "slug": "uirs-v4",
     "extra": {
       "eas": {
-        
         "projectId": "3563b812-437e-4671-9616-81e556bc7e2f"
       }
     },
@@ -17,12 +16,34 @@
           "RNMapboxMapsDownloadToken": "sk.eyJ1Ijoicm9nZXJza2llMDkiLCJhIjoiY21jNHYyNmNjMDQ1ODJqc2E1eWp2MDJtdSJ9.QToWVLoAMKhJFr511jiY6A"
         }
       ],
-      "expo-notifications"
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "35.0.0",
+            "extraMavenRepos": [
+              "../../node_modules/@notifee/react-native/android/libs"
+            ]
+          }
+        }
+      ]
     ],
     "android": {
       "package": "com.rogerskie09.uirsv4",
       "icon": "./assets/uirs_logo.png",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "USE_FULL_SCREEN_INTENT",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK",
+        "DISABLE_KEYGUARD"
+      ]
     }
   }
 }

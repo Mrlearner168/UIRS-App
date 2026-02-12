@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -14,8 +15,30 @@ export default function TermsModal({ visible, onClose, onAccept }) {
   const [checked, setChecked] = useState(false);
   const { t } = useTranslation();
 
+  const handleCancel = () => {
+    Alert.alert(
+      t('termsrequired') || 'Terms Required',
+      t('mustacceptterms') || 'You must accept the terms and regulations to continue.',
+      [
+        {
+          text: t('cancel') || 'Cancel',
+          onPress: () => {},
+          style: 'cancel',
+        }
+      ]
+    );
+  };
+
   return (
-    <Modal animationType="slide" transparent visible={visible}>
+    <Modal 
+      animationType="slide" 
+      transparent 
+      visible={visible}
+      onRequestClose={() => {
+        // Prevent closing on back button
+        handleCancel();
+      }}
+    >
       <View style={styles.overlay}>
         <View style={styles.container}>
           <Text style={styles.title}>Terms and Regulations</Text>
@@ -47,12 +70,17 @@ export default function TermsModal({ visible, onClose, onAccept }) {
           </View>
 
           <View style={styles.buttons}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
               <Text style={styles.cancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.acceptBtn, { opacity: checked ? 1 : 0.5 }]}
-              onPress={() => checked && onAccept()}
+              onPress={() => {
+                if (checked) {
+                  setChecked(false);
+                  onAccept();
+                }
+              }}
               disabled={!checked}
             >
               <Text style={styles.acceptText}>{t('acceptrequest')}</Text>
@@ -86,6 +114,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     marginBottom: 15,
+    maxHeight: 300,
   },
   content: {
     fontSize: 14,

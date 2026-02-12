@@ -68,14 +68,15 @@ const ProfileScreen = ({ navigation }) => {
   const [verifiedPhone, setVerifiedPhone] = useState('');
   const [otpVisible, setOtpVisible] = useState(false);
   const [otpTarget, setOtpTarget] = useState(null); // "email" or "phone"
-  const [roleType, setRoleType] = useState("responder_personnel"); 
+  const [roleType, setRoleType] = useState("responder_personnel");
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
   const [updateTarget, setUpdateTarget] = useState('email'); // or 'phone'
   const [language, setLanguage] = useState('en');
 
   const { t, i18n } = useTranslation();
   const { logout } = useContext(AuthContext);
-  
+  console.log(avatar);
+
   // Check if the user is online or offline
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => setIsOnline(state.isConnected));
@@ -89,7 +90,7 @@ const ProfileScreen = ({ navigation }) => {
     };
     syncLanguage();
   }, []);
-  
+
   //check for token
   useEffect(() => {
     const fetchToken = async () => {
@@ -106,7 +107,7 @@ const ProfileScreen = ({ navigation }) => {
     };
     fetchToken();
   }, []);
-  
+
   // fetch users data using offline and online methods
   const fetchUserData = async () => {
     try {
@@ -127,7 +128,7 @@ const ProfileScreen = ({ navigation }) => {
         setAvatar(user.avatar ? `${SERVER_URL}/avatar/${user.avatar}` : '');
         setRole(user.role || 'user');
         setRoleStatus(user.role_status || '');
-         // Fix: set verified values
+        // Fix: set verified values
         setVerifiedEmail(user.email || '');
         setVerifiedPhone(user.phone || '');
         return;
@@ -149,7 +150,7 @@ const ProfileScreen = ({ navigation }) => {
       setAvatar(user.avatar ? `${SERVER_URL}/avatar/${user.avatar}` : '');
       setRole(user.role || 'user');
       setRoleStatus(user.role_status || '');
-       // Fix: set verified values
+      // Fix: set verified values
       setVerifiedEmail(user.email || '');
       setVerifiedPhone(user.phone || '');
 
@@ -176,7 +177,7 @@ const ProfileScreen = ({ navigation }) => {
       return () => unsubscribe();
     }, [navigation, token])
   );
-  
+
   useEffect(() => {
     const fetchStations = async () => {
       if (!token) return;
@@ -250,10 +251,10 @@ const ProfileScreen = ({ navigation }) => {
       });
 
       await axios.post(`${SERVER_URL}/update_profile`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        Authorization: `Bearer ${token}`,
-      },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       Alert.alert("Success", t('avatarupdated'));
@@ -305,17 +306,17 @@ const ProfileScreen = ({ navigation }) => {
       { cancelable: true }
     );
   };
-  
+
   const sendOtp = async () => {
     if (!updateTarget) {
-     // console.log("sendOtp called but updateTarget is null");
+      // console.log("sendOtp called but updateTarget is null");
       return;
     }
-  
+
     try {
       const token = await EncryptedStorage.getItem('token');
       const newContact = updateTarget === 'email' ? email : phone;
-    
+
       if (!newContact) {
         Alert.alert(
           'Error',
@@ -324,7 +325,7 @@ const ProfileScreen = ({ navigation }) => {
         );
         return;
       }
-    
+
       const response = await fetch(`${SERVER_URL}/send_change_otp`, {
         method: 'POST',
         headers: {
@@ -337,9 +338,9 @@ const ProfileScreen = ({ navigation }) => {
           contact_type: updateTarget
         }),
       });
-    
+
       const data = await response.json();
-    
+
       if (response.ok && data.success) {
         Alert.alert('OTP Sent', `OTP sent to your ${updateTarget}`);
         setUpdateModalVisible(true);
@@ -359,13 +360,13 @@ const ProfileScreen = ({ navigation }) => {
       );
     }
   };
-  
+
   const handleSubmitRoleRequest = async () => {
     if (!stationId || !roleType || !idCardFront || !idCardBack || !selfieWithId) {
       Alert.alert("Error", t('uploadrequired'));
       return;
     }
-  
+
     try {
       setLoading(true);
       const formData = new FormData();
@@ -384,11 +385,11 @@ const ProfileScreen = ({ navigation }) => {
           Authorization: `Bearer ${token}`,
         },
       });
-    
+
       Alert.alert("Success", t('rolesubmitted'));
       await fetchUserData();
       setRoleRequestModalVisible(false);
-    
+
       // reset
       setStationId(null);
       setIdCardFront(null);
@@ -402,7 +403,7 @@ const ProfileScreen = ({ navigation }) => {
       setLoading(false);
     }
   };
-  
+
   const handleSavePassword = () => {
     if (newPassword !== confirmPassword) {
       Alert.alert("Error", t('notmatch'));
@@ -443,7 +444,7 @@ const ProfileScreen = ({ navigation }) => {
     try {
       await fetchUserData();
       if (roleStatus === 'none') {
-      setRoleRequestModalVisible(true);
+        setRoleRequestModalVisible(true);
         return;
       }
 
@@ -502,58 +503,58 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.languageContainer}>
           <View style={styles.languageRow}>
             <Ionicons name="globe-outline" size={20} color="black" style={{ marginRight: 5 }} />
-          <Picker
-            selectedValue={language}
-            onValueChange={async (value) => {
-              setLanguage(value);
-              await setAppLanguage(value);  
-            }}
-            style={styles.languagePicker}
-            mode="dropdown"
-          >
-            <Picker.Item label="English" value="en" />
-            <Picker.Item label="Filipino" value="fil" />
-            <Picker.Item label="Hiligaynon" value="hil" />
-          </Picker>
-          
+            <Picker
+              selectedValue={language}
+              onValueChange={async (value) => {
+                setLanguage(value);
+                await setAppLanguage(value);
+              }}
+              style={styles.languagePicker}
+              mode="dropdown"
+            >
+              <Picker.Item label="English" value="en" />
+              <Picker.Item label="Filipino" value="fil" />
+              <Picker.Item label="Hiligaynon" value="hil" />
+            </Picker>
+
           </View>
         </View>
         <View style={styles.profileContainer}>
-            <TouchableOpacity
-              onPress={() => {
-                if (isOnline) {
-                  pickImage();
-                } else {
-                  Alert.alert("Offline", t('cantchangeoffline'));
-                }
-              }}
-            >
-              {avatar ? (
-                <Image source={{ uri: avatar }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarPlaceholderText}>{t('noimage')}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            
-            {avatarChanged && isOnline && (
-              <TouchableOpacity style={styles.saveButton} onPress={handleSaveAvatar}>
-                <Text style={styles.saveButtonText}>{t('savephoto')}</Text>
-              </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              if (isOnline) {
+                pickImage();
+              } else {
+                Alert.alert("Offline", t('cantchangeoffline'));
+              }
+            }}
+          >
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarPlaceholderText}>{t('noimage')}</Text>
+              </View>
             )}
+          </TouchableOpacity>
 
-            <Text style={styles.username}>
-              {firstName} {lastName}
-              <Icon
-                name={isOnline ? 'wifi' : 'wifi-off'}
-                size={20}
-                color={isOnline ? 'green' : 'red'}
-                style={{ marginLeft: 1 }}
-              />
-            </Text>
+          {avatarChanged && isOnline && (
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveAvatar}>
+              <Text style={styles.saveButtonText}>{t('savephoto')}</Text>
+            </TouchableOpacity>
+          )}
+
+          <Text style={styles.username}>
+            {firstName} {lastName}
+            <Icon
+              name={isOnline ? 'wifi' : 'wifi-off'}
+              size={20}
+              color={isOnline ? 'green' : 'red'}
+              style={{ marginLeft: 1 }}
+            />
+          </Text>
         </View>
-          
+
 
         <View style={styles.formContainer}>
           <Text style={styles.label}>{t('firstname')}</Text>
@@ -563,7 +564,7 @@ const ProfileScreen = ({ navigation }) => {
           <TextInput style={styles.input} value={lastName} onChangeText={setLastName} editable={false} />
 
           <Text style={styles.label}>{t('age')}</Text>
-          <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" editable={false}/>
+          <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" editable={false} />
 
           <Text style={styles.label}>{t('email')}</Text>
           <View style={styles.row}>
@@ -578,15 +579,19 @@ const ProfileScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.verifyBtn}
                 onPress={() => {
-                  setUpdateTarget("email");
-                  sendOtp();
+                  if (isOnline) {
+                    setUpdateTarget("email");
+                    sendOtp();
+                  } else {
+                    Alert.alert("Offline", t('cantchangeoffline'));
+                  }
                 }}
               >
                 <Text style={styles.verifyBtnText}>{t('savechanges')}</Text>
               </TouchableOpacity>
             )}
           </View>
-          
+
           <Text style={styles.label}>{t('phone')}</Text>
           <View style={styles.row}>
             <TextInput
@@ -594,7 +599,11 @@ const ProfileScreen = ({ navigation }) => {
               value={phone}
               keyboardType="phone-pad"
               onChangeText={(text) => {
-                setPhone(text);
+                if (isOnline) {
+                  setPhone(text);
+                } else {
+                  Alert.alert(t('offline'), t('cantchangeoffline '));
+                }
               }}
             />
             {phone !== '' && phone !== verifiedPhone && (
@@ -610,7 +619,7 @@ const ProfileScreen = ({ navigation }) => {
 
             )}
           </View>
-          
+
           {/* PASSWORD SECTION */}
           <Text style={{ fontSize: 14, marginBottom: 8, textAlign: 'center', color: '#000' }}>
             ( {t('changepassword')} )
@@ -642,7 +651,7 @@ const ProfileScreen = ({ navigation }) => {
               />
             </TouchableOpacity>
           </View>
-            
+
           {newPassword && (
             <>
               <Text style={[styles.label, { color: '#000' }]}>{t('confirmpassword')}</Text>
@@ -671,7 +680,7 @@ const ProfileScreen = ({ navigation }) => {
                   />
                 </TouchableOpacity>
               </View>
-                
+
               {confirmPassword && (
                 <TouchableOpacity style={styles.saveButton} onPress={handleSavePassword}>
                   <Text style={styles.saveButtonText}>{t('savepassword')}</Text>
@@ -682,7 +691,7 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* ROLE REQUEST */}
           {role !== 'admin' && role !== 'responder_head' && (
-            <TouchableOpacity style={styles.saveButton1}  onPress={handleApplyResponderRole}>
+            <TouchableOpacity style={styles.saveButton1} onPress={handleApplyResponderRole}>
               <Text style={styles.saveButtonText}>{t('applyresponder')}</Text>
             </TouchableOpacity>
           )}
@@ -778,33 +787,33 @@ const ProfileScreen = ({ navigation }) => {
                     </TouchableOpacity>
                   )}
                 </View>
-                
-                  
-                    
+
+
+
                 {/* Image Uploads */}
                 <Text style={styles.label}>{t('requiredID')}</Text>
-                    
+
                 <TouchableOpacity onPress={() => pickImageForField(setIdCardFront)} style={styles.uploadButton}>
                   <Text style={styles.uploadButtonText}>
                     {idCardFront ? t('selectedfrontid') : t('uploadfrontid')}
                   </Text>
                 </TouchableOpacity>
-                {idCardFront && <Image source={{ uri: idCardFront }} style={styles.previewImage}/>}
-                    
+                {idCardFront && <Image source={{ uri: idCardFront }} style={styles.previewImage} />}
+
                 <TouchableOpacity onPress={() => pickImageForField(setIdCardBack)} style={styles.uploadButton}>
                   <Text style={styles.uploadButtonText}>
                     {idCardBack ? t('selectedbackid') : t('uploadbackid')}
                   </Text>
                 </TouchableOpacity>
-                {idCardBack && <Image source={{ uri: idCardBack }} style={styles.previewImage}/>}
-                    
+                {idCardBack && <Image source={{ uri: idCardBack }} style={styles.previewImage} />}
+
                 <TouchableOpacity onPress={() => pickImageForField(setSelfieWithId)} style={styles.uploadButton}>
                   <Text style={styles.uploadButtonText}>
                     {selfieWithId ? t('selectedselfieid') : t('uploadselfieid')}
                   </Text>
                 </TouchableOpacity>
-                {idCardFront && <Image source={{ uri: selfieWithId }} style={styles.previewImage}/>}
-                    
+                {idCardFront && <Image source={{ uri: selfieWithId }} style={styles.previewImage} />}
+
                 {/* Modal Buttons */}
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.cancelButton} onPress={() => setRoleRequestModalVisible(false)}>
@@ -816,7 +825,7 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               </ScrollView>
             </View>
-                    
+
             {/* Station Selection Modal */}
             <Modal animationType="slide" transparent={true} visible={stationSelectionModalVisible}>
               <View style={styles.stationModalContainer}>
@@ -867,7 +876,7 @@ const ProfileScreen = ({ navigation }) => {
             if (success) {
               if (updateTarget === "email") setEmail(newContact);
               else setPhone(newContact);
-            
+
               setOtpTarget(updateTarget);
               setOtpVisible(true);
             }
@@ -970,13 +979,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   verifyBtn: {
-  backgroundColor: 'rgb(0, 123, 255)', // Blue
-  paddingVertical: 8,
-  paddingHorizontal: 50,
-  borderRadius: 10,
-  marginLeft: 8,
-  alignItems: 'center',
-  justifyContent: 'center',
+    backgroundColor: 'rgb(0, 123, 255)', // Blue
+    paddingVertical: 8,
+    paddingHorizontal: 50,
+    borderRadius: 10,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   verifyBtnText: {
     color: '#fff',
@@ -1120,8 +1129,8 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   roleTypeContainer: {
-  flexDirection: "row",
-  justifyContent: "space-around",
+    flexDirection: "row",
+    justifyContent: "space-around",
   },
   roleTypeButton: {
     padding: 10,
@@ -1153,7 +1162,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
     backgroundColor: '#e0e0e0',
     borderRadius: 25,
-    
+
   },
   languageRow: {
     flexDirection: 'row',

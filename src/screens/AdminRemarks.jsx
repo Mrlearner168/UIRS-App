@@ -35,23 +35,33 @@ export default function DoneIncidentsScreen() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const {t} = useTranslation();
+
+  // Track remaining media per incident
+  const [incidentMediaState, setIncidentMediaState] = useState({});
+
+  const { t } = useTranslation();
+
   useEffect(() => {
     fetchIncidents();
   }, []);
 
-  // Check login token
   useEffect(() => {
     const fetchToken = async () => {
       try {
         const storedToken = await EncryptedStorage.getItem("token");
         if (!storedToken) navigation.navigate("Login");
-      } catch (error) {
+      } catch {
         Alert.alert("Error", "Failed to fetch authentication token.");
       }
     };
     fetchToken();
   }, []);
+
+  const getMediaArray = (media) => {
+    if (Array.isArray(media)) return media.filter(m => typeof m === "string" && m.trim() !== "");
+    if (typeof media === "string" && media.trim() !== "") return [media];
+    return [];
+  };
 
   const fetchIncidents = async () => {
     setLoading(true);
@@ -59,14 +69,12 @@ export default function DoneIncidentsScreen() {
       const token = await EncryptedStorage.getItem("token");
       if (!token) return;
 
-      const pendingRes = await axios.get(
-        `${SERVER_URL}/incidents/done/unvalidated`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const postedRes = await axios.get(
-        `${SERVER_URL}/incidents/done/validated`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const pendingRes = await axios.get(`${SERVER_URL}/incidents/done/unvalidated`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const postedRes = await axios.get(`${SERVER_URL}/incidents/done/validated`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       const combinedData = [...pendingRes.data, ...postedRes.data];
 
@@ -74,29 +82,28 @@ export default function DoneIncidentsScreen() {
         combinedData.map(async (item) => {
           try {
             const [lat, lng] = item.location.split(",").map(Number);
-            const reverseGeocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-            const address = reverseGeocode[0]
-              ? `${reverseGeocode[0].street || ""}, ${reverseGeocode[0].city || ""}, ${reverseGeocode[0].region || ""}, ${reverseGeocode[0].country || ""}`
+            const address = !isNaN(lat) && !isNaN(lng)
+              ? ((await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng }))[0]
+                ? `${reverseGeocode[0].street || ""}, ${reverseGeocode[0].city || ""}, ${reverseGeocode[0].region || ""}, ${reverseGeocode[0].country || ""}`
+                : item.location)
               : item.location;
 
-            let mediaArray = [];
-            if (Array.isArray(item.media)) mediaArray = item.media;
-            else if (typeof item.media === "string" && item.media.trim() !== "") mediaArray = [item.media];
+            const mediaArray = getMediaArray(item.media);
+
+            setIncidentMediaState(prev => ({ ...prev, [item.id]: [...mediaArray] }));
 
             return { ...item, locationReadable: address, media: mediaArray };
           } catch {
-            return {
-              ...item,
-              locationReadable: item.location,
-              media: Array.isArray(item.media) ? item.media : [item.media],
-            };
+            const mediaArray = getMediaArray(item.media);
+            setIncidentMediaState(prev => ({ ...prev, [item.id]: [...mediaArray] }));
+            return { ...item, locationReadable: item.location, media: mediaArray };
           }
         })
       );
 
       setIncidents(updatedData);
     } catch (err) {
-      console.log("Error fetching incidents:", err);
+      console.error("Failed to fetch incidents:", err);
       Alert.alert("Error", "Failed to fetch incidents");
     } finally {
       setLoading(false);
@@ -109,6 +116,27 @@ export default function DoneIncidentsScreen() {
     fetchIncidents();
   };
 
+  const removeImage = (incidentId, imageIndex) => {
+    Alert.alert(
+      t('confirm') || 'Confirm',
+      t('confirmremoveimage') || 'Are you sure you want to remove this image?',
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        {
+          text: t('delete') || 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setIncidentMediaState(prev => {
+              const updated = [...prev[incidentId]];
+              updated.splice(imageIndex, 1);
+              return { ...prev, [incidentId]: updated };
+            });
+          }
+        }
+      ]
+    );
+  };
+
   const submitRemark = async (incidentId) => {
     if (!remark[incidentId] || remark[incidentId].trim() === "") {
       Alert.alert("Notice❗", t('remarksempty'));
@@ -116,13 +144,14 @@ export default function DoneIncidentsScreen() {
     }
     try {
       const token = await EncryptedStorage.getItem("token");
-      if (!token) return;
+      if (!token) return Alert.alert("Error", t('authentication_failed') || 'Authentication failed');
 
-      const incident = incidents.find((i) => i.id === incidentId);
-
+      const remainingMedia = incidentMediaState[incidentId] || [];
+      const mediaString = remainingMedia.join(',');
+      console.log("Submitting remark with media:", mediaString);
       await axios.post(
         `${SERVER_URL}/incidents/${incidentId}/remarks`,
-        { remark: remark[incidentId], media: incident.media },
+        { remark: remark[incidentId], media: mediaString },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -130,8 +159,9 @@ export default function DoneIncidentsScreen() {
       setRemark({ ...remark, [incidentId]: "" });
       fetchIncidents();
     } catch (err) {
-      console.log("Error adding remark:", err.response?.data || err.message);
-      Alert.alert("Error", t('failedremarks'));
+      console.error("Error adding remark:", err);
+      const errorMsg = err.response?.data?.message || err.message || t('failedremarks');
+      Alert.alert("Error", errorMsg);
     }
   };
 
@@ -142,9 +172,17 @@ export default function DoneIncidentsScreen() {
   };
 
   const submitEdit = async () => {
+    if (!editRemarks || editRemarks.trim() === "") {
+      Alert.alert("Notice❗", t('remarksempty') || 'Remarks cannot be empty');
+      return;
+    }
+
     try {
       const token = await EncryptedStorage.getItem("token");
-      if (!token) return;
+      if (!token) {
+        Alert.alert("Error", t('authentication_failed') || 'Authentication failed');
+        return;
+      }
 
       await axios.put(
         `${SERVER_URL}/incidents/${editIncidentId}`,
@@ -155,9 +193,11 @@ export default function DoneIncidentsScreen() {
       Alert.alert("Success", t('incidentupdated'));
       fetchIncidents();
       setEditModalVisible(false);
+      setEditRemarks("");
     } catch (err) {
-      console.log("Error editing incident:", err.response?.data || err.message);
-      Alert.alert("Error", t('failedupdate'));
+      console.error("Error editing incident:", err);
+      const errorMsg = err.response?.data?.message || err.message || t('failedupdate');
+      Alert.alert("Error", errorMsg);
     }
   };
 
@@ -170,17 +210,18 @@ export default function DoneIncidentsScreen() {
         onPress: async () => {
           try {
             const token = await EncryptedStorage.getItem("token");
-            if (!token) return;
+            if (!token) return Alert.alert("Error", t('authentication_failed') || 'Authentication failed');
 
             await axios.delete(`${SERVER_URL}/incidents/${incidentId}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
 
-            Alert.alert("Success", "Incident deleted");
+            Alert.alert("Success", t('incidentdeleted') || "Incident deleted");
             fetchIncidents();
           } catch (err) {
-            console.log("Error deleting incident:", err.response?.data || err.message);
-            Alert.alert("Error", "Failed to delete incident");
+            console.error("Error deleting incident:", err);
+            const errorMsg = err.response?.data?.message || err.message || t('failedupdated');
+            Alert.alert("Error", errorMsg);
           }
         },
       },
@@ -214,7 +255,6 @@ export default function DoneIncidentsScreen() {
         >
           <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('pendingpost')}</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           onPress={() => setActiveTab("posted")}
           style={{ backgroundColor: activeTab === "posted" ? "#007AFF" : "#ccc", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignItems: "center" }}
@@ -236,43 +276,42 @@ export default function DoneIncidentsScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.title}>{item.incidentType}</Text>
-            <Text style={styles.text}>{t('location')}{item.processLocation ||item.locationReadable}</Text>
+            <Text style={styles.text}>{t('location')}{item.processLocation || item.locationReadable}</Text>
             <Text style={styles.text}>{t('reportedtime')} {item.incidentTime}</Text>
             <Text style={styles.date}>{t('createdat')} {item.created_at}</Text>
 
-            {/* Images */}
             <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
-              {item.media.map((img, idx) => (
-                <View key={idx} style={{ position: "relative", marginRight: 8, marginBottom: 8 }}>
-                  {activeTab === "pending" && (
+              {incidentMediaState[item.id] && incidentMediaState[item.id].length > 0 ? (
+                incidentMediaState[item.id].map((img, idx) => (
+                  <View key={`${item.id}-${idx}`} style={{ position: "relative", marginRight: 8, marginBottom: 8 }}>
+                    {activeTab === "pending" && (
+                      <TouchableOpacity
+                        onPress={() => removeImage(item.id, idx)}
+                        style={styles.removeButton}
+                      >
+                        <Text style={{ color: "white", fontWeight: "bold", fontSize: 16 }}>×</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                       onPress={() => {
-                        const updatedIncidents = incidents.map((incident) =>
-                          incident.id === item.id
-                            ? { ...incident, media: incident.media.filter((_, i) => i !== idx) }
-                            : incident
-                        );
-                        setIncidents(updatedIncidents);
+                        const imageUris = incidentMediaState[item.id].map(m => ({ uri: m.startsWith('http') ? m : `${SERVER_URL}${m}` }));
+                        setViewerImages(imageUris);
+                        setViewerIndex(idx);
+                        setImageViewerVisible(true);
                       }}
-                      style={styles.removeButton}
                     >
-                      <Text style={{ color: "white", fontWeight: "bold" }}>X</Text>
+                      <Image
+                        source={{ uri: img.startsWith('http') ? img : `${SERVER_URL}${img}` }}
+                        style={{ width: 100, height: 100, borderRadius: 6 }}
+                      />
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    onPress={() => {
-                      setViewerImages(item.media.map((m) => ({ uri: `${SERVER_URL}${m}` })));
-                      setViewerIndex(idx);
-                      setImageViewerVisible(true);
-                    }}
-                  >
-                    <Image
-                      source={{ uri: `${SERVER_URL}${img}` }}
-                      style={{ width: 100, height: 100, borderRadius: 6 }}
-                    />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                  </View>
+                ))
+              ) : (
+                <Text style={{ color: '#888', fontSize: 12, marginVertical: 8 }}>
+                  {t('noimages') || 'No images'}
+                </Text>
+              )}
             </View>
 
             {item.adminRemarks ? (
@@ -297,7 +336,6 @@ export default function DoneIncidentsScreen() {
                 <TouchableOpacity onPress={() => openEditModal(item)} style={styles.button}>
                   <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('editremarks')}</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity onPress={() => deleteIncident(item.id)} style={styles.delbutton}>
                   <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('delete')}</Text>
                 </TouchableOpacity>
@@ -307,7 +345,6 @@ export default function DoneIncidentsScreen() {
         )}
       />
 
-      {/* Edit Modal */}
       <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" }}>
           <View style={{ width: 300, padding: 20, backgroundColor: "#fff", borderRadius: 10 }}>
@@ -316,7 +353,6 @@ export default function DoneIncidentsScreen() {
             <TouchableOpacity onPress={submitEdit} style={styles.button}>
               <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('submitedit')}</Text>
             </TouchableOpacity>
-
             <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.delbutton}>
               <Text style={{ color: "#fff", fontWeight: "bold" }}>{t('cancel')}</Text>
             </TouchableOpacity>
@@ -324,7 +360,6 @@ export default function DoneIncidentsScreen() {
         </View>
       </Modal>
 
-      {/* Image Viewer */}
       <ImageViewing
         images={viewerImages}
         imageIndex={viewerIndex}
@@ -370,12 +405,12 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     position: "absolute",
-    top: -5,
-    right: -5,
+    top: -8,
+    right: -8,
     backgroundColor: "red",
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1,

@@ -61,7 +61,7 @@ export default function UpdatesScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = res.data;
-      console.log("Fetched incidents:", data);
+      //console.log("Fetched incidents:", data);
 
       const updatedData = await Promise.all(
         data.map(async (item) => {

@@ -7,25 +7,25 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import haversine from 'haversine-distance';
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   PermissionsAndroid,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  useColorScheme
+  View
 } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
-import SendSMS from 'react-native-sms';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { IncidentStationMapContext } from "../context/IncidentStationMapContext";
 
@@ -49,11 +49,11 @@ const ReportIncident = () => {
   const [isSubmitting, setIsSubmitting] = useState(false); // Loading state
   const [lastLocation, setLastLocation] = useState(null);
   const [lastReadable, setLastReadable] = useState(null);
+  const [addressCache, setAddressCache] = useState({});
+  const [lastNetworkCheck, setLastNetworkCheck] = useState(null);
+  const locationUpdateTimeoutRef = useRef(null);
   const { stationMap } = useContext(IncidentStationMapContext);
   const {t} = useTranslation();
-  const colorScheme = useColorScheme(); // 'dark' or 'light'
-  const isDarkMode = colorScheme === 'dark';
-
 
   // Patient info for Medical Emergency
   const [isConscious, setIsConscious] = useState(null);
@@ -106,26 +106,26 @@ const ReportIncident = () => {
   
   const stationKeywords = {
     // Fire / Burn / Smoke
-    "fire": ["BFP"],
-    "kalayo": ["BFP"],
-    "sunog": ["BFP"],
-    "aso": ["BFP"],
-    "pagsunog": ["BFP"],
-    "flame": ["BFP"],
-    "blaze": ["BFP"],
-    "smoke": ["BFP"],
-    "burn": ["BFP"],
-    "ignite": ["BFP"],
-    "incendio": ["BFP"],
-    "flaming": ["BFP"],
-    "combustion": ["BFP"],
-    "charred": ["BFP"],
-    "spark": ["BFP"],
-    "fireball": ["BFP"],
-    "pyro": ["BFP"],
-    "smolder": ["BFP"],
-    "ash": ["BFP"],
-    "conflagration": ["BFP"],
+    "fire": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "kalayo": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "sunog": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "aso": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "pagsunog": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "flame": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "blaze": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "smoke": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "burn": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "ignite": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "incendio": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "flaming": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "combustion": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "charred": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "spark": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "fireball": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "pyro": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "smolder": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "ash": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "conflagration": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
 
     // Accidents / Collisions / Injuries
     "accident": ["Rescuer", "Ambulance"],
@@ -243,12 +243,17 @@ const ReportIncident = () => {
     return () => unsubscribe();
   }, []);
   
-  // Check network quality
+  // Check network quality - Use cache if recent check available
   const checkNetworkQuality = async () => {
+    const now = Date.now();
+    if (lastNetworkCheck && (now - lastNetworkCheck.timestamp) < 10000) {
+      return lastNetworkCheck.result; // Reuse result from last 10 seconds
+    }
+
     const testPing = async () => {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
+        const timeout = setTimeout(() => controller.abort(), 3000); // Reduced from 5s
 
         const start = Date.now();
         const response = await fetch("https://www.google.com/generate_204", {
@@ -263,17 +268,17 @@ const ReportIncident = () => {
       }
     };
 
-    // Run multiple pings
+    // Run 3 pings instead of 5 for faster check
     const samples = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       samples.push(await testPing());
     }
     const sorted = samples.sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
 
-    // Upload test (5 attempts, require 3 successes)
+    // Quick upload test - 2 attempts, need 1 success
     let successCount = 0;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 2; i++) {
       try {
         const res = await fetch(`${SERVER_URL}/upload_test`, {
           method: "POST",
@@ -288,36 +293,68 @@ const ReportIncident = () => {
         console.log("Upload test failed, attempt:", i + 1);
       }
     }
-    const uploadOk = successCount >= 3;
+    const uploadOk = successCount >= 1;
 
     console.log("Network quality check:", { samples, median, successCount, uploadOk });
 
-    // Decision: combine latency + upload result
-    if (!uploadOk) {
-      return { status: "bad", latency: median }; // SMS fallback
-    }
+    const result = !uploadOk 
+      ? { status: "bad", latency: median }
+      : median < 200 
+        ? { status: "strong", latency: median }
+        : median < 500 
+          ? { status: "moderate", latency: median }
+          : median < 1000 
+            ? { status: "weak", latency: median }
+            : { status: "bad", latency: median };
 
-    if (median < 200) return { status: "strong", latency: median };   // fast + uploads ok
-    if (median < 500) return { status: "moderate", latency: median }; // ok + uploads ok
-    if (median < 1000) return { status: "weak", latency: median };    // slow but stable
-
-    return { status: "bad", latency: median }; // too unstable
+    setLastNetworkCheck({ timestamp: now, result });
+    return result;
   };
 
   // Load queued reports from storage on mount
   useEffect(() => {
     const loadQueue = async () => {
-      const storedQueue = await EncryptedStorage.getItem('offline_reports');
-      if (storedQueue) setQueue(JSON.parse(storedQueue));
-      console.log('Loaded offline reports queue:', storedQueue ? JSON.parse(storedQueue) : []);
+      try {
+        const storedQueue = await EncryptedStorage.getItem('offline_reports');
+        if (storedQueue) {
+          const parsed = JSON.parse(storedQueue);
+          // Validate queue integrity
+          const validQueue = parsed.filter(item => 
+            item && item.incidentType && item.location && item.station_ids
+          );
+          if (validQueue.length !== parsed.length) {
+            console.warn(`Removed ${parsed.length - validQueue.length} corrupted queue items`);
+            await EncryptedStorage.setItem('offline_reports', JSON.stringify(validQueue));
+          }
+          setQueue(validQueue);
+          console.log('Loaded offline reports queue:', validQueue.length, 'items');
+        }
+      } catch (err) {
+        console.error('Failed to load queue:', err);
+        // Clear corrupted queue
+        await EncryptedStorage.removeItem('offline_reports');
+        setQueue([]);
+      }
     };
     loadQueue();
-    }, []);
+  }, []);
 
   // Auto-submit queued reports when back online
   useEffect(() => {
     if (isOnline) processOfflineQueue();
   }, [isOnline]);
+
+  // Periodic retry for queued reports (every 5 minutes if online)
+  useEffect(() => {
+    if (!isOnline || queue.length === 0) return;
+
+    const retryInterval = setInterval(() => {
+      console.log('Periodic retry check for queued reports...');
+      processOfflineQueue();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(retryInterval);
+  }, [isOnline, queue.length]);
   // for live clock 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -400,79 +437,149 @@ const ReportIncident = () => {
   
   //console.log("Incident time:", incidentTime);
   const processOfflineQueue = async () => {
-    if (queue.length === 0) return;
+    if (!queue.length) {
+      console.log('Queue is empty');
+      return;
+    }
 
+    console.log(`Processing ${queue.length} queued reports...`);
+    
     const failedReports = [];
+    const successfulReports = [];
+    let processedCount = 0;
 
-    for (const reportData of queue) {
-      const netQuality = await checkNetworkQuality();
-      console.log("Processing queued report, network:", netQuality.status);
-
-      if (
-        isOnline ||
-        netQuality.status === "strong" ||
-        netQuality.status === "moderate" ||
-        netQuality.status === "weak"
-      ) {
-        try {
-          const formData = new FormData();
-          formData.append('incidentType', reportData.subType || reportData.incidentType);
-          formData.append('incidentDescription', reportData.incidentDescription);
-          formData.append('incidentTime', reportData.incidentTime);
-          formData.append('processed_location', reportData.location); 
-          formData.append('location', reportData.location);
-          formData.append('station_ids', reportData.station_ids.join(','));
-
-          reportData.media.forEach((uri, i) => {
-            formData.append('media', {
-              uri,
-              name: `media_${i}_${Date.now()}.jpg`,
-              type: 'image/jpeg'
-            });
-          });
-
-          if (reportData.incidentType === 'Medical Emergency') {
-            formData.append('isConscious', reportData.isConscious ? 'true' : 'false');
-            formData.append('patientName', reportData.patientName || '');
-            formData.append('patientAge', reportData.patientAge || '');
-            formData.append('patientGender', reportData.patientGender || '');
-          }
-
-          await axios.post(`${SERVER_URL}/report_incident`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              Authorization: `Bearer ${token}`,
-            },
-          });
-
-          console.log("Queued report submitted:", reportData);
-        } catch (err) {
-          console.log("Failed to submit queued report, keeping in queue:", err);
-          failedReports.push(reportData);
-        }
-      } else {
+    for (let i = 0; i < queue.length; i++) {
+      const reportData = queue[i];
+      
+      // Skip if exceeded max retry attempts (10)
+      if (reportData.attempts && reportData.attempts >= 10) {
+        console.warn(`Report ${reportData.id || i} exceeded max retry attempts`);
         failedReports.push(reportData);
+        continue;
+      }
+
+      // Check network connectivity
+      const netState = await NetInfo.fetch();
+      const isConnected = netState.isConnected && netState.isInternetReachable;
+
+      if (!isConnected) {
+        console.log('No network connectivity. Keeping reports in queue.');
+        failedReports.push(...queue.slice(i)); // Keep remaining reports
+        break;
+      }
+
+      try {
+        // Build form data
+        const formData = new FormData();
+        formData.append('incidentType', reportData.incidentType);
+        formData.append('subType', reportData.subType || '');
+        formData.append('incidentDescription', reportData.incidentDescription || '');
+        formData.append('incidentTime', reportData.formatDateTime ? reportData.formatDateTime(reportData.incidentTime) : formatDateTime(reportData.incidentTime));
+        formData.append('processed_location', reportData.processed_location || reportData.location);
+        formData.append('location', reportData.location);
+        formData.append('station_ids', (reportData.station_ids || []).join(','));
+
+        // Safely append media files
+        if (Array.isArray(reportData.media)) {
+          reportData.media
+            .filter(uri => typeof uri === 'string' && uri.length > 0)
+            .forEach((uri, idx) => {
+              try {
+                const localUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+                formData.append('media', {
+                  uri: localUri,
+                  name: `media_${idx}_${Date.now()}.webp`,
+                  type: 'image/webp',
+                });
+              } catch (mediaErr) {
+                console.warn(`Failed to append media ${idx}:`, mediaErr);
+              }
+            });
+        }
+
+        // Medical Emergency fields
+        if (reportData.incidentType === 'Medical Emergency') {
+          formData.append('isConscious', reportData.isConscious ? 'true' : 'false');
+          formData.append('patientName', reportData.patientName || '');
+          formData.append('patientAge', reportData.patientAge || '');
+          formData.append('patientGender', reportData.patientGender || '');
+        }
+
+        console.log(`Submitting queued report (${i + 1}/${queue.length}):`, reportData.id);
+
+        const response = await axios.post(`${SERVER_URL}/report_incident`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 20000,
+        });
+
+        // Success
+        console.log(`✓ Report ${reportData.id} submitted successfully`);
+        successfulReports.push(reportData.id);
+        processedCount++;
+
+      } catch (err) {
+        const errorMsg = err.response?.data?.message || err.message || 'Unknown error';
+        const statusCode = err.response?.status;
+
+        // Categorize errors
+        const isRetryable = !statusCode || statusCode >= 500 || statusCode === 408 || statusCode === 429;
+        
+        const updatedReport = {
+          ...reportData,
+          attempts: (reportData.attempts || 0) + 1,
+          lastAttemptTime: Date.now(),
+          lastError: errorMsg,
+        };
+
+        if (isRetryable) {
+          console.warn(`✗ Report ${reportData.id} failed (retryable):`, errorMsg);
+          failedReports.push(updatedReport);
+        } else if (statusCode === 409) {
+          // Duplicate - don't retry
+          console.warn(`✗ Report ${reportData.id} is a duplicate. Removing from queue.`);
+        } else {
+          console.error(`✗ Report ${reportData.id} failed (non-retryable):`, errorMsg);
+          failedReports.push(updatedReport);
+        }
       }
     }
 
-    // Update queue and storage
-    setQueue(failedReports);
+    // Update queue with failed reports
+    const finalQueue = failedReports.map(r => {
+      const attempt = r.attempts || 0;
+      // Add exponential backoff: 2^attempt * 1000ms
+      const backoffMs = Math.min(Math.pow(2, attempt) * 1000, 3600000); // Max 1 hour
+      return { ...r, nextRetryTime: Date.now() + backoffMs };
+    });
 
-    if (failedReports.length > 0) {
-      await EncryptedStorage.setItem('offline_reports', JSON.stringify(failedReports));
+    setQueue(finalQueue);
+
+    if (finalQueue.length > 0) {
+      await EncryptedStorage.setItem('offline_reports', JSON.stringify(finalQueue));
     } else {
-      // All reports uploaded successfully → clear storage
       await EncryptedStorage.removeItem('offline_reports');
     }
 
-    if (failedReports.length === 0) {
-      Alert.alert('All queued reports submitted successfully.');
-    } else if (failedReports.length < queue.length) {
-      Alert.alert(
-        `${queue.length - failedReports.length} queued reports submitted, ${failedReports.length} still pending.`
-      );
+    // Show summary
+    const summary = `${successfulReports.length} submitted, ${finalQueue.length} pending`;
+    console.log(`Queue processing complete: ${summary}`);
+    
+    if (successfulReports.length > 0) {
+      Alert.alert('Reports Submitted', `${successfulReports.length} report(s) successfully uploaded.`);
+    }
+    
+    if (finalQueue.length > 0) {
+      const oldestRetry = finalQueue[0].nextRetryTime;
+      const waitMinutes = Math.ceil((oldestRetry - Date.now()) / 60000);
+      if (waitMinutes > 0) {
+        console.log(`Next retry in ${waitMinutes} minute(s)`);
+      }
     }
   };
+
   //location
   useEffect(() => { requestLocationPermission(); }, []);
   // Load saved location when screen opens
@@ -502,80 +609,131 @@ const ReportIncident = () => {
 
     const watchLocation = async () => {
       subscription = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 20, timeInterval: 5000 },
+        { 
+          accuracy: Location.Accuracy.High, // More accurate for faster geocoding
+          distanceInterval: isOnline ? 10 : 50, // 10m online, 50m offline to reduce processing
+          timeInterval: isOnline ? 3000 : 10000 // 3s online, 10s offline
+        },
         async (loc) => {
           const lat = loc.coords.latitude;
           const lon = loc.coords.longitude;
           const newPoint = { latitude: lat, longitude: lon };
           setSelectedLocation(newPoint);
 
-          // Check movement distance
+          // Check movement distance - faster threshold
           const moved = lastLocation ? haversine(lastLocation, newPoint) : Infinity;
-          if (moved < 100) {
-            setLocation(lastReadable || `${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+          if (moved < 50 && lastReadable) {
+            // Small movement and we have cached address, skip geocoding
+            setLocation(lastReadable);
             return;
           }
 
           setLastLocation(newPoint);
 
-          if (isOnline) {
-            const net = await checkNetworkQuality();
-            console.log("Network quality:", net.status);
-
-            if (net.status === "strong" || net.status === "moderate" || net.status === "weak") {
-              const readable = await convertToReadableLocation(lat, lon);
-              setLocation(readable);
-              setLastReadable(readable);
-
-              await EncryptedStorage.setItem(
-                "lastLocationData",
-                JSON.stringify({
-                  latitude: lat,
-                  longitude: lon,
-                  readable: readable,
-                  timestamp: Date.now(),
-                })
-              );
-            } else {
-              setLocation(lastReadable || `${lat.toFixed(6)}, ${lon.toFixed(6)}`);
-            }
-          } else {
-            setLocation(lastReadable || `${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+          // Debounce rapid geocoding requests
+          if (locationUpdateTimeoutRef.current) {
+            clearTimeout(locationUpdateTimeoutRef.current);
           }
+
+          locationUpdateTimeoutRef.current = setTimeout(async () => {
+            if (!isOnline) {
+              // Offline - show coordinates immediately
+              setLocation(`${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+              return;
+            }
+
+            // Online - try to get readable address, but use coords as fallback
+            const readable = await convertToReadableLocation(lat, lon);
+            setLocation(readable);
+            setLastReadable(readable);
+
+            await EncryptedStorage.setItem(
+              "lastLocationData",
+              JSON.stringify({
+                latitude: lat,
+                longitude: lon,
+                readable: readable,
+                timestamp: Date.now(),
+              })
+            );
+          }, 500); // 500ms debounce for rapid location changes
         }
       );
     };
 
     watchLocation();
-    return () => { if (subscription) subscription.remove(); };
+    return () => { 
+      if (subscription) subscription.remove();
+      if (locationUpdateTimeoutRef.current) clearTimeout(locationUpdateTimeoutRef.current);
+    };
   }, [locationPermissionGranted, isOnline, lastLocation, lastReadable]);
+
 
   const requestLocationPermission = async () => {
     try {
-      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setLocationPermissionGranted(false);
-        setShowPermissionPrompt(true);
-        if (!canAskAgain) Alert.alert(t('enableperset'));
-        return;
+      const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+
+      if (status === 'granted') {
+        setLocationPermissionGranted(true);
+        setShowPermissionPrompt(false);
+        return true;
       }
-      setLocationPermissionGranted(true);
-      setShowPermissionPrompt(false);
+
+      if (status === 'denied' && canAskAgain) {
+        const { status: requestStatus } = await Location.requestForegroundPermissionsAsync();
+        if (requestStatus === 'granted') {
+          setLocationPermissionGranted(true);
+          setShowPermissionPrompt(false);
+          return true;
+        }
+      }
+
+      setLocationPermissionGranted(false);
+      setShowPermissionPrompt(true);
+
+      if (!canAskAgain) {
+        Alert.alert(
+          t('enableperset'),
+          'Please enable location permission in settings to continue.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          ]
+        );
+      }
+
+      return false;
     } catch (err) {
       setLocationPermissionGranted(false);
       setShowPermissionPrompt(true);
       Alert.alert('Error requesting location permission', err.message);
+      return false;
     }
   };
+
   //console.log("Readable Location:", location);
   const convertToReadableLocation = async (latitude, longitude) => {
+    const coordKey = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+    
+    // Check cache first
+    if (addressCache[coordKey]) {
+      console.log("Using cached address:", addressCache[coordKey]);
+      return addressCache[coordKey];
+    }
+
+    // Offline mode - return coords immediately
+    if (!isOnline) {
+      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    }
+
     const timeout = (ms) =>
       new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms));
 
     try {
+      // Reduce timeout to 2 seconds for faster fallback
       const result = await Promise.race([
         Location.reverseGeocodeAsync({ latitude, longitude }),
-        timeout(3000),
+        timeout(2000),
       ]);
 
       if (!result || result.length === 0) return "Unnamed Road";
@@ -591,19 +749,64 @@ const ReportIncident = () => {
         .filter(Boolean)
         .join(", ");
 
-      return formatted.trim() || "Unnamed Road";
+      const readable = formatted.trim() || "Unnamed Road";
+      
+      // Cache the result
+      setAddressCache(prev => ({
+        ...prev,
+        [coordKey]: readable
+      }));
+      
+      return readable;
     } catch {
-      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      const coordFormat = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      // Cache coordinate format too
+      setAddressCache(prev => ({
+        ...prev,
+        [coordKey]: coordFormat
+      }));
+      return coordFormat;
     }
   };
 
   const saveToQueue = async (reportData) => {
-    const updatedQueue = [...queue, reportData];
-    setQueue(updatedQueue);
-    await EncryptedStorage.setItem('offline_reports', JSON.stringify(updatedQueue));
+    // Validate report data structure
+    if (!reportData.incidentType || !reportData.location || !Array.isArray(reportData.station_ids)) {
+      console.error('Invalid report data structure:', reportData);
+      Alert.alert('Error', 'Invalid report data. Cannot queue.');
+      return false;
+    }
+
+    try {
+      const enrichedReport = {
+        ...reportData,
+        queuedAt: Date.now(),
+        attempts: 0, // Track submission attempts
+        lastAttemptTime: null,
+        lastError: null,
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Unique queue ID
+      };
+
+      const updatedQueue = [...queue, enrichedReport];
+      setQueue(updatedQueue);
+      await EncryptedStorage.setItem('offline_reports', JSON.stringify(updatedQueue));
+      
+      console.log('Report queued successfully. Queue size:', updatedQueue.length);
+      return true;
+    } catch (err) {
+      console.error('Failed to save report to queue:', err);
+      Alert.alert('Error', 'Failed to queue report. Please try again.');
+      return false;
+    }
   };
   const requestSMSPermission = async () => {
     try {
+      const currentStatus = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.SEND_SMS
+      );
+
+      if (currentStatus) return true;
+
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.SEND_SMS,
         {
@@ -613,100 +816,87 @@ const ReportIncident = () => {
           buttonNegative: 'Deny'
         }
       );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
+
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+      if (granted === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+        Alert.alert(
+          'Permission required',
+          'Please enable SMS permission from settings to send emergency reports.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          ]
+        );
+      }
+
+      return false;
     } catch (err) {
       console.log('SMS permission error:', err);
       return false;
     }
   };
   //sms reporting
+
   const sendSMSReport = async (reportData) => {
     console.log("sendSMSReport called with:", { reportData, nearestStations });
 
-    if (!reportData.station_ids?.length) {
-      console.log("No station IDs found in reportData:", reportData);
-      return;
-    }
+    if (!reportData.station_ids?.length) return;
 
     const hasPermission = await requestSMSPermission();
-    console.log("SMS permission granted:", hasPermission);
     if (!hasPermission) {
-      Alert.alert('Permission Denied',t('messpermission'));
+      Alert.alert('Permission Denied', t('messpermission'));
       return;
     }
 
     const recipients = nearestStations
       .filter(s => reportData.station_ids.includes(s.id))
       .map(s => s.contact)
-      .slice(0, 3);
+      .slice(0, 3); // pick up to 3 numbers
 
-    console.log("Recipients filtered for SMS:", recipients);
     if (!recipients.length) {
       Alert.alert(t('nostationsms'));
       return;
     }
 
+    let mapLink = '';
+
+    if (reportData.location && reportData.location.includes(',')) {
+      const [lat, lon] = reportData.location.split(',').map(p => p.trim());
+      if (lat && lon) {
+        mapLink = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+      }
+    }
+
+    if (!mapLink) {
+      mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        reportData.processed_location
+      )}`;
+    }
 
     const message = `
-    Type of Incident: ${reportData.incidentType}
-    that has a ${reportData.subType ? `sub-type of ${reportData.subType}` : 'no specified sub-type'}
-    Description: ${reportData.incidentDescription}
-    Location: ${reportData.processed_location}
-    Date/Time: ${formatSMSDateTime(reportData.incidentTime)}
-    This Message Generated By UIRS System ...
-    `;
+  Type of Incident: ${reportData.incidentType}
+  ${reportData.subType ? `Sub-type: ${reportData.subType}` : ''}
+  Description: ${reportData.incidentDescription}
+  Location: ${reportData.processed_location}
+  Map Link: ${mapLink}
+  Date/Time: ${formatSMSDateTime(reportData.incidentTime)}
+  This message generated by UIRS System.
+  `.trim();
 
-    console.log("SMS message content:", message);
+    const smsUrl =
+      Platform.OS === 'android'
+        ? `sms:${recipients.join(',')}?body=${encodeURIComponent(message)}`
+        : `sms:${recipients.join(',')}&body=${encodeURIComponent(message)}`;
 
-    let acknowledged = false;
-
-    // Start timeout for delivery acknowledgment (e.g., 10s)
-    const deliveryTimeout = setTimeout(() => {
-      if (!acknowledged) {
-        Alert.alert(
-          'Delivery Failed',
-          t('smsdeliveryfailed'),
-          [{ text: 'Retry', onPress: () => retryLastReport() }]
-        );
-      }
-    }, 10000); // 10 seconds, adjust as needed
-
-    SendSMS.send(
-      {
-        body: message,
-        recipients: recipients,
-        successTypes: ['sent', 'queued'],
-        allowAndroidSendWithoutReadPermission: false,
-      },
-      async (completed, cancelled, error) => {
-        acknowledged = true; // mark callback received
-        clearTimeout(deliveryTimeout);
-
-        console.log("SMS callback:", { completed, cancelled, error });
-
-        if (completed) {
-          Alert.alert(
-            'Success',
-            `${t('smssentto')} ${recipients.join(', ')}`,
-            [{ text: 'OK', onPress: () => onRefresh() }]
-          );
-        } else if (cancelled) {
-          Alert.alert(
-            'Cancelled',
-            t('smscancelled'),
-            [{ text: 'OK', onPress: () => retryLastReport() }]
-          );
-        } else if (error && !completed && !cancelled) {
-          console.log('SMS sending failed.', error);
-          Alert.alert(
-            'Error',
-            t('smserror'),
-            [{ text: 'Retry', onPress: () => retryLastReport() }]
-          );
-        }
-      }
-    );
+    try {
+      await Linking.openURL(smsUrl);
+    } catch (err) {
+      console.log("Failed to open SMS app:", err);
+      Alert.alert('Error', t('smserror'));
+    }
   };
+
   // Manual retry
   const retryLastReport = () => {
     console.log("retryLastReport called. Last report:", lastReport);
@@ -716,87 +906,108 @@ const ReportIncident = () => {
       Alert.alert(t('noreport'));
     }
   };
+
+  // Retry all queued reports manually
+  const retryQueuedReports = async () => {
+    if (queue.length === 0) {
+      Alert.alert('No queued reports', 'All reports have been submitted.');
+      return;
+    }
+
+    Alert.alert(
+      'Retry Queue',
+      `Attempt to submit ${queue.length} queued report(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Retry',
+          onPress: async () => {
+            await processOfflineQueue();
+          }
+        }
+      ]
+    );
+  };
   //report incident
   const submitReport = async (reportData, showAlert = true, resetFields = true, isOnline) => {
     setIsSubmitting(true);
 
-    const networkQuality = await checkNetworkQuality();
-    console.log("Submit network quality:", networkQuality);
+    try {
+      // Check if we can submit online
+      let canSubmitOnline = isOnline;
+      if (isOnline) {
+        const networkQuality = await checkNetworkQuality();
+        canSubmitOnline = ['strong', 'moderate', 'weak'].includes(networkQuality.status);
+        console.log("Network quality check:", networkQuality);
+      }
 
-    if (isOnline || networkQuality.status === "strong" || networkQuality.status === "moderate" || networkQuality.status === "weak") {
-      try {
-        const formData = new FormData();
-        formData.append('incidentType', reportData.incidentType);
-        formData.append('subType', reportData.subType);
-        formData.append('incidentDescription', reportData.incidentDescription);
-        formData.append('incidentTime', formatDateTime(reportData.incidentTime));
-        formData.append('location', reportData.location);
-        formData.append('processed_location', reportData.processed_location);
-        formData.append('station_ids', reportData.station_ids.join(','));
-        reportData.media.forEach((item, i) => {
-          formData.append('media', {
-            uri: item.uri,
-            name: item.name,
-            type: item.type
-          });
-        });
-
-
-        if (reportData.incidentType === 'Medical Emergency') {
-          formData.append('isConscious', reportData.isConscious ? 'true' : 'false');
-          formData.append('patientName', reportData.patientName || '');
-          formData.append('patientAge', reportData.patientAge || '');
-          formData.append('patientGender', reportData.patientGender || '');
-        }
-
-        console.log('Submitting report:', reportData);
-
-        await axios.post(`${SERVER_URL}/report_incident`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            Authorization: `Bearer ${token}`
+      if (canSubmitOnline) {
+        // Attempt online submission
+        try {
+          const formData = new FormData();
+          formData.append('incidentType', reportData.incidentType);
+          formData.append('subType', reportData.subType);
+          formData.append('incidentDescription', reportData.incidentDescription);
+          formData.append('incidentTime', formatDateTime(reportData.incidentTime));
+          formData.append('location', reportData.location);
+          formData.append('processed_location', reportData.processed_location);
+          formData.append('station_ids', reportData.station_ids.join(','));
+          
+          // Append media safely
+          if (Array.isArray(reportData.media)) {
+            reportData.media.forEach((item, i) => {
+              try {
+                formData.append('media', {
+                  uri: item.uri || item,
+                  name: item.name || `media_${i}_${Date.now()}.webp`,
+                  type: item.type || 'image/webp'
+                });
+              } catch (mediaErr) {
+                console.warn(`Failed to append media ${i}:`, mediaErr);
+              }
+            });
           }
-        });
 
-        if (showAlert) {
-          Alert.alert(
-            "Success" , t('successrep'),
-            [
-              {
-                text: "Home",
-                onPress: () => {
-                  if (role === "admin") {
-                    navigation.navigate("AdminDashboard");
-                  } else if (role === "responder_personnel" || role === "responder_head") {
-                    navigation.navigate("ResponderDashboard");
-                  } else {
-                    navigation.navigate("UserHome");
-                  }
+          if (reportData.incidentType === 'Medical Emergency') {
+            formData.append('isConscious', reportData.isConscious ? 'true' : 'false');
+            formData.append('patientName', reportData.patientName || '');
+            formData.append('patientAge', reportData.patientAge || '');
+            formData.append('patientGender', reportData.patientGender || '');
+          }
+
+          console.log('Submitting report:', reportData.incidentType);
+
+          await axios.post(`${SERVER_URL}/report_incident`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+              Authorization: `Bearer ${token}`
+            },
+            timeout: 20000,
+          });
+
+          // Success
+          if (showAlert) {
+            Alert.alert(
+              "Success", t('successrep'),
+              [
+                {
+                  text: "Home",
+                  onPress: () => {
+                    if (role === "admin") {
+                      navigation.navigate("AdminDashboard");
+                    } else if (role === "responder_personnel" || role === "responder_head") {
+                      navigation.navigate("ResponderDashboard");
+                    } else {
+                      navigation.navigate("UserHome");
+                    }
+                  },
                 },
-              },
-              { text: "Ok" },
-            ],
-            { cancelable: false }
-          );
-        }
+                { text: "Ok" },
+              ],
+              { cancelable: false }
+            );
+          }
 
-        if (resetFields) {
-          setIncidentType('');
-          setIncidentDescription('');
-          setMedia([]);
-          setSubType('');
-          setIsConscious(null);
-          setPatientName('');
-          setPatientAge('');
-          setPatientGender('');
-        }
-
-      } catch (err) {
-        if (err.response && err.response.status === 409) {
-          Alert.alert(
-            "Duplicate Report",
-            t('duplicatealert'),
-          );
           if (resetFields) {
             setIncidentType('');
             setIncidentDescription('');
@@ -807,9 +1018,50 @@ const ReportIncident = () => {
             setPatientAge('');
             setPatientGender('');
           }
-        } else {
-          Alert.alert("Error", t('submiterror'));
+
+          return;
+        } catch (err) {
+          console.error('Online submission failed:', err.message);
+          
+          // Handle specific errors
+          if (err.response?.status === 409) {
+            Alert.alert("Duplicate Report", t('duplicatealert'));
+            if (resetFields) {
+              setIncidentType('');
+              setIncidentDescription('');
+              setMedia([]);
+              setSubType('');
+              setIsConscious(null);
+              setPatientName('');
+              setPatientAge('');
+              setPatientGender('');
+            }
+            setIsSubmitting(false);
+            return;
+          }
+
+          // For other errors, try queueing instead
+          console.log('Will queue report due to submission error');
         }
+      }
+
+      // Offline or failed online submission - queue the report
+      const queued = await saveToQueue(reportData);
+      
+      if (queued) {
+        Alert.alert(
+          "Offline",
+          t('offlinequeue'),
+        );
+        
+        // If offline, also try SMS
+        if (!isOnline) {
+          console.log('Attempting SMS fallback...');
+          sendSMSReport(reportData);
+        }
+        
+        setLastReport(reportData);
+
         if (resetFields) {
           setIncidentType('');
           setIncidentDescription('');
@@ -821,18 +1073,13 @@ const ReportIncident = () => {
           setPatientGender('');
         }
       }
-    } else {
-      // Offline or poor connection fallback
-      await saveToQueue(reportData);
-      Alert.alert(
-        "Offline",
-        t('offlinequeue'),
-        );
-      sendSMSReport(reportData);
-      setLastReport(reportData);
-    }
 
-    setIsSubmitting(false);
+    } catch (err) {
+      console.error('Report submission error:', err);
+      Alert.alert("Error", t('submiterror'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   //duplicate incident
   const checkDuplicateIncident = async (reportData) => {
@@ -968,29 +1215,60 @@ const ReportIncident = () => {
     openCamera();
   };
   const removeMedia = (index) => setMedia(prev => prev.filter((_, i) => i !== index));
+  
+  // Delete media from a submitted report via API
+  const deleteMediaFromReport = async (reportId, mediaPath) => {
+    try {
+      const response = await axios.delete(
+        `${SERVER_URL}/delete_media/${reportId}`,
+        {
+          data: { media_path: mediaPath },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000,
+        }
+      );
+
+      console.log('Media deleted successfully:', response.data);
+      Alert.alert('Success', 'Media file deleted successfully');
+      return true;
+    } catch (err) {
+      console.error('Error deleting media:', err.response?.data || err.message);
+      const errorMsg = err.response?.data?.message || 'Failed to delete media file';
+      Alert.alert('Error', errorMsg);
+      return false;
+    }
+  };
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     
-    if (selectedLocation && isOnline) {
-      const readable = await convertToReadableLocation(
-        selectedLocation.latitude,
-        selectedLocation.longitude
-      );
-      setLocation(readable);
-      setLastReadable(readable);
-      await EncryptedStorage.setItem(
-        "lastLocationData",
-        JSON.stringify({
-          latitude: selectedLocation.latitude,
-          longitude: selectedLocation.longitude,
-          readable,
-          timestamp: Date.now(),
-        })
-      );
+    if (selectedLocation) {
+      if (isOnline) {
+        const readable = await convertToReadableLocation(
+          selectedLocation.latitude,
+          selectedLocation.longitude
+        );
+        setLocation(readable);
+        setLastReadable(readable);
+        await EncryptedStorage.setItem(
+          "lastLocationData",
+          JSON.stringify({
+            latitude: selectedLocation.latitude,
+            longitude: selectedLocation.longitude,
+            readable,
+            timestamp: Date.now(),
+          })
+        );
+      } else {
+        // Offline - use cached or coordinates
+        setLocation(lastReadable || `${selectedLocation.latitude.toFixed(6)}, ${selectedLocation.longitude.toFixed(6)}`);
+      }
     }
   
     setNearestStations(fetchStationsByType());
-    checkNetworkQuality();
     processOfflineQueue();
   
     setIncidentType(''); 
@@ -1009,6 +1287,20 @@ const ReportIncident = () => {
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <Text style={styles.header}>{t('reportincident')}</Text>
+
+        {/* Queue Status Indicator */}
+        {queue.length > 0 && (
+          <View style={{ backgroundColor: '#fff3cd', padding: 12, borderRadius: 8, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#ff9800' }}>
+            <Text style={{ color: '#856404', fontWeight: 'bold', marginBottom: 4 }}>
+              ⚠️ {queue.length} report(s) waiting to submit
+            </Text>
+            <TouchableOpacity onPress={retryQueuedReports}>
+              <Text style={{ color: '#0066cc', textDecorationLine: 'underline', marginTop: 4 }}>
+                Tap to retry now
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {showPermissionPrompt ? (
           <View style={styles.permissionBox}>
@@ -1134,7 +1426,7 @@ const ReportIncident = () => {
             )}
             
 
-            <TextInput style={styles.input} placeholder={t('time')} value={incidentTime ? formatDateTime(incidentTime) : ""} editable={false} />
+            <TextInput style={styles.input} placeholder={t('time')} placeholderTextColor={'#888'} value={incidentTime ? formatDateTime(incidentTime) : ""} editable={false} />
 
             <ScrollView horizontal>
               {media.map((file, index) => (

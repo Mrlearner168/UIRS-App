@@ -1,4 +1,4 @@
-import { MAPBOX_TOKEN, SERVER_URL } from '@env';
+import { RNMAPBOX_MAPS_DOWNLOAD_TOKEN, SERVER_URL } from '@env';
 import { Picker } from '@react-native-picker/picker';
 import MapboxGL from '@rnmapbox/maps';
 import { useEffect, useState } from 'react';
@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
 
-MapboxGL.setAccessToken(MAPBOX_TOKEN);
+MapboxGL.setAccessToken(RNMAPBOX_MAPS_DOWNLOAD_TOKEN);
 
 const TrackLocationScreen = ({ route, navigation }) => {
   const { incidentId, incidentLocation } = route.params;
@@ -137,7 +137,7 @@ const TrackLocationScreen = ({ route, navigation }) => {
   const fetchRouteWithDuration = async (origin, destination) => {
     try {
       console.log("Fetching route from:", origin, "to:", destination);
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}?geometries=geojson&access_token=${RNMAPBOX_MAPS_DOWNLOAD_TOKEN}`;
       const res = await fetch(url);
       const json = await res.json();
       console.log("Mapbox response:", JSON.stringify(json, null, 2));

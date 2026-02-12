@@ -1,29 +1,42 @@
+import { RNMAPBOX_MAPS_DOWNLOAD_TOKEN } from "@env";
 import { Ionicons } from '@expo/vector-icons';
 import notifee from '@notifee/react-native';
 import messaging from '@react-native-firebase/messaging';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
-import { getFocusedRouteNameFromRoute, NavigationContainer } from '@react-navigation/native';
+import { getFocusedRouteNameFromRoute, NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import MapboxGL from '@rnmapbox/maps';
-import { useContext, useState } from 'react';
-import { I18nextProvider } from 'react-i18next';
-import { ActivityIndicator, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { useContext, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  NativeEventEmitter,
+  NativeModules,
+  PermissionsAndroid,
+  Platform, // Added
+  Text, // Added
+  TouchableOpacity, // Added
+  Vibration,
+  View
+} from 'react-native';
+// Added missing import for EncryptedStorage used in App component
+import EncryptedStorage from 'react-native-encrypted-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootSiblingParent } from 'react-native-root-siblings';
-import i18n from '../UIRS-V4/src/translation/i18n';
-
-import { MAPBOX_TOKEN } from "@env";
-import { useNavigation } from "@react-navigation/native";
 import { AuthContext, AuthProvider } from './src/context/AuthContext';
 import { IncidentStationMapProvider } from './src/context/IncidentStationMapContext';
 import { SocketProvider } from './src/context/SocketContext';
 import { ToastProvider } from './src/context/ToastContext';
 import { useFCMToken } from './src/hook/useFCMToken';
 import { useGlobalIncidentListener } from './src/hook/useGlobalIncidentListener';
-MapboxGL.setAccessToken(MAPBOX_TOKEN);
 
-import { useEffect } from "react";
+MapboxGL.setAccessToken(RNMAPBOX_MAPS_DOWNLOAD_TOKEN);
+
 // Import Screens
 import ResponderLocationTracking from './src/hook/ResponderLocationTracking';
 import AddStationScreen from './src/screens/AddStationScreen';
@@ -48,17 +61,18 @@ const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-function AppInitializer() {
+function AppInitializer({ initialProps }) {
   // listener mounts once
   useGlobalIncidentListener();
-
+  
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <RootNavigator />
+      <RootNavigator initialProps={initialProps} />
       <ResponderLocationTracking />
     </GestureHandlerRootView>
   );
 }
+
 //Dashboard tabs
 function HomeTabs() {
   return (
@@ -74,7 +88,7 @@ function HomeTabs() {
           } else if (route.name === "Report") {
             iconName = "add-circle";
           } else if (route.name === "Event Updates") {
-            iconName = "refresh"; // or "reload" / "sync" depending on preference
+            iconName = "refresh"; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -120,7 +134,7 @@ function HomeTabs1() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -153,7 +167,7 @@ function HomeTabs3() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -212,7 +226,7 @@ function HomeTabs5() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -245,7 +259,7 @@ function HomeTabs6() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -274,7 +288,7 @@ function HomeTabs7() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -303,7 +317,7 @@ function HomeTabs8() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -337,7 +351,7 @@ function HomeTabs9() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -370,7 +384,7 @@ function HomeTabs10() {
           } else if (route.name === 'Report') {
             iconName = 'add-circle';
           } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; // or "reload" / "sync" depending on preference
+            iconName = 'refresh'; 
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -523,8 +537,55 @@ const commonScreens = (
     <Stack.Screen name="YourReports" component={HomeTabs7} />
   </>
 );
-function RootNavigator() {
+function RootNavigator({ initialProps }) {
   const { authData, loading } = useContext(AuthContext);
+  const navigationRef = useRef(); 
+  
+  // 1. STATE FOR EMERGENCY MODAL
+  const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
+  const [incidentData, setIncidentData] = useState(null);
+
+  // 2. COMMON HANDLER FOR EMERGENCY ACTIVATION
+  const activateEmergencyMode = (data) => {
+    if (data?.is_emergency) {
+      console.log("🚨 ACTIVATING EMERGENCY MODAL", data);
+      setIncidentData(data);
+      setEmergencyModalVisible(true);
+      Vibration.vibrate([0, 500, 200, 500]); // Haptic feedback
+    }
+  };
+
+  // 3. EFFECT: Handle "Cold Start" (App Launched from Dead State)
+  useEffect(() => {
+    if (initialProps?.is_emergency) {
+      activateEmergencyMode(initialProps);
+    }
+  }, [initialProps]);
+
+  // 4. EFFECT: Handle "Warm Start" (App in Background/Foreground)
+  useEffect(() => {
+    const deviceEventEmitter = new NativeEventEmitter(NativeModules.RCTDeviceEventEmitter);
+    const subscription = deviceEventEmitter.addListener('onEmergencyNotification', (event) => {
+      activateEmergencyMode(event);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // 5. EFFECT: Handle FCM Background/Terminated via React Native Firebase (Backup)
+  useEffect(() => {
+    const handleNavigation = (remoteMessage) => {
+      if (remoteMessage?.data?.type === 'emergency') {
+        activateEmergencyMode({...remoteMessage.data, is_emergency: true});
+      }
+    };
+
+    messaging().getInitialNotification().then(handleNavigation);
+    const unsubscribeOpen = messaging().onNotificationOpenedApp(handleNavigation);
+
+    return () => {
+      unsubscribeOpen();
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -535,71 +596,149 @@ function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!authData.token ? (  // check token, not authData
-          <Stack.Screen name="Login1" component={Login} />
-        ) : authData.role === 'user' ? (
-          <Stack.Screen name="UserDashboard" component={DrawerNavigator} />
-        ) : authData.role === 'admin' ? (
-          <Stack.Screen name="AdminDashboard1" component={DrawerNavigator1} />
-        ) : (authData.role === 'responder_head' || authData.role === 'responder_personnel') ? (
-          <Stack.Screen name="ResponderDashboard1" component={DrawerNavigator2} />
-        ) : (
-          <Stack.Screen name="Login2" component={Login} />
-        )}
-        {commonScreens}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <NavigationContainer ref={navigationRef}> 
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!authData?.token ? (
+            <Stack.Screen name="Login1" component={Login} />
+          ) : authData.role === 'user' ? (
+            <Stack.Screen name="UserDashboard" component={DrawerNavigator} />
+          ) : authData.role === 'admin' ? (
+            <Stack.Screen name="AdminDashboard1" component={DrawerNavigator1} />
+          ) : (authData.role === 'responder_head' || authData.role === 'responder_personnel') ? (
+            <Stack.Screen name="ResponderDashboard1" component={DrawerNavigator2} />
+          ) : (
+            <Stack.Screen name="Login2" component={Login} />
+          )}
+          {commonScreens}
+        </Stack.Navigator>
+      </NavigationContainer>
+
+      {/* 6. GLOBAL EMERGENCY MODAL */}
+      <Modal 
+        visible={emergencyModalVisible} 
+        transparent={true} 
+        animationType="slide"
+        statusBarTranslucent={true}
+        onRequestClose={() => setEmergencyModalVisible(false)} // Android Back Button
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '85%', backgroundColor: 'white', borderRadius: 20, padding: 25, alignItems: 'center', elevation: 10 }}>
+            
+            <Ionicons name="warning" size={60} color="#FF0000" />
+            
+            <Text style={{ fontSize: 22, fontWeight: 'bold', marginVertical: 10, color: '#FF0000', textAlign: 'center' }}>
+              CRITICAL INCIDENT
+            </Text>
+            
+            <Text style={{ textAlign: 'center', marginBottom: 20, fontSize: 16, color: '#333' }}>
+              {incidentData?.body || "An emergency incident requires your immediate attention."}
+            </Text>
+            
+            <TouchableOpacity 
+              style={{ backgroundColor: '#FF0000', paddingVertical: 15, borderRadius: 10, width: '100%', alignItems: 'center', marginBottom: 12 }}
+              onPress={() => {
+                setEmergencyModalVisible(false);
+                // Navigate to Responder Dashboard
+                if (navigationRef.current) {
+                  navigationRef.current.navigate('ResponderDashboard1', { 
+                    incidentData: incidentData 
+                  });
+                }
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>VIEW REPORT</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={() => setEmergencyModalVisible(false)}
+              style={{ padding: 10 }}
+            >
+              <Text style={{ color: '#666', fontSize: 14 }}>DISMISS</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
-export default function App() {
+
+export default function App(props) {
   const fcmToken = useFCMToken();
-  const [loading, setLoading] = useState(true);
+  console.log('FCM Token:', fcmToken);
 
   useEffect(() => {
-    const loadLanguage = async () => {
-      const lang = await EncryptedStorage.getItem('userLanguage');
-      if (lang) i18n.changeLanguage(lang); // change only if exists
-      setLoading(false);
+    const loadData = async () => {
+      // 1. Load Language
+      try {
+        const lang = await EncryptedStorage.getItem('userLanguage');
+        // Ensure i18n is imported or this line will throw if not defined globally
+        if (lang && global.i18n) global.i18n.changeLanguage(lang);
+      } catch (e) {
+        console.log("Language load error:", e);
+      }
+
+      // 2. Request Permissions
+      await requestAllPermissions();
     };
-    loadLanguage();
+    
+    loadData();
   }, []);
   
-  useEffect(() => {
-    async function setupChannel() {
-      await notifee.createChannel({
-        id: 'default',
-        name: 'Default Channel',
-      });
+  const requestAllPermissions = async () => {
+    try {
+      // 1. Standard Android Permissions (SMS, Camera, Location)
+      if (Platform.OS === 'android') {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.SEND_SMS,
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        ]);
+      }
+
+      await Location.requestForegroundPermissionsAsync();
+      await ImagePicker.requestCameraPermissionsAsync();
+
+      // 2. Critical Emergency Permissions (Android 14+ Full Screen)
+      if (Platform.OS === 'android') {
+        const settings = await notifee.getNotificationSettings();
+        
+        // Check Full Screen Intent (Value 1 is authorized)
+        if (Platform.Version >= 34 && settings.android.fullScreenIntent !== 1) {
+          Alert.alert(
+            'Emergency Access Required',
+            'To wake your phone during an emergency, please enable "Allow full screen intents".',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Open Settings',
+                onPress: () => Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT', [
+                  { key: 'package', value: 'com.rogerskie09.uirsv4' }
+                ]),
+              },
+            ]
+          );
+        }
+
+        // 3. Battery Optimization (Crucial for background wake)
+        const isOptimized = await notifee.isBatteryOptimizationEnabled();
+        if (isOptimized) {
+          Alert.alert(
+            'Battery Restriction Detected',
+            'To ensure you receive alerts instantly, set battery to "Unrestricted".',
+            [
+              { text: 'Later', style: 'cancel' },
+              { 
+                text: 'Open Settings', 
+                onPress: () => notifee.openBatteryOptimizationSettings() 
+              },
+            ]
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Permission Error:', err);
     }
-    setupChannel();
-  }, []);
-  
-  //fcm token logging
-  console.log('Token of FCM:', fcmToken);
-  
-  useEffect(() => {
-    const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('FCM foreground second:', remoteMessage);
-
-      // Show system tray notification while in foreground
-      await notifee.displayNotification({
-        title: remoteMessage.notification?.title || 'UIRS',
-        body: remoteMessage.notification?.body || 'New message',
-        android: {
-          channelId: 'default',
-          pressAction: { id: 'default' },
-        },
-      });
-
-      // Or use Alert if you prefer popup
-      // Alert.alert(remoteMessage.notification?.title, remoteMessage.notification?.body);
-    });
-
-    return unsubscribe;
-  }, []);
-
+  };
   function MainApp() {
     const fcmToken = useFCMToken(); // hook runs only if logged in
     console.log('FCM token:', fcmToken);
@@ -607,20 +746,16 @@ export default function App() {
 
   return (
     <RootSiblingParent>
-      <I18nextProvider i18n={i18n}>
-        <AuthProvider>
-          <IncidentStationMapProvider>
-            <SocketProvider>
-              <ToastProvider>
-                <RootSiblingParent>
-                  <AppInitializer />
-                  <MainApp />
-                </RootSiblingParent>
-              </ToastProvider>
-            </SocketProvider>
-          </IncidentStationMapProvider>
-        </AuthProvider>
-      </I18nextProvider>
+      <AuthProvider>
+        <IncidentStationMapProvider>
+          <SocketProvider>
+            <ToastProvider>
+              <AppInitializer initialProps={props} />
+              <MainApp />
+            </ToastProvider>
+          </SocketProvider>
+        </IncidentStationMapProvider>
+      </AuthProvider>
     </RootSiblingParent>
   );
 }

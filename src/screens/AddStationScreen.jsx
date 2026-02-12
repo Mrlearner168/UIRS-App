@@ -1,4 +1,4 @@
-import { MAPBOX_TOKEN, SERVER_URL } from "@env";
+import { RNMAPBOX_MAPS_DOWNLOAD_TOKEN, SERVER_URL } from "@env";
 import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
 import MapboxGL from "@rnmapbox/maps";
@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import EncryptedStorage from "react-native-encrypted-storage";
 
-MapboxGL.setAccessToken(MAPBOX_TOKEN);
+MapboxGL.setAccessToken(RNMAPBOX_MAPS_DOWNLOAD_TOKEN);
 
 const STATION_TYPES = ["BFP", "PNP", "Ambulance", "Rescuer"];
 
@@ -159,7 +159,7 @@ export default function AddStationScreen() {
     try {
       const res = await axios.get(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`,
-        { params: { access_token: MAPBOX_TOKEN, limit: 5, types: "poi,address,place,locality" } }
+        { params: { access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN, limit: 5, types: "poi,address,place,locality" } }
       );
       setSearchResults(res.data.features || []);
     } catch (e) {
@@ -210,7 +210,7 @@ export default function AddStationScreen() {
       if (latitude && longitude) {
         const geoRes = await axios.get(
           `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json`,
-          { params: { access_token: MAPBOX_TOKEN } }
+          { params: { access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN } }
         );
         if (geoRes.data.features.length > 0)
           readableAddress = geoRes.data.features[0].place_name;
@@ -295,7 +295,7 @@ export default function AddStationScreen() {
         try {
           const geoRes = await axios.get(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json`,
-            { params: { access_token: MAPBOX_TOKEN } }
+            { params: { access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN } }
           );
           if (geoRes.data.features && geoRes.data.features.length > 0) {
             readableAddress = geoRes.data.features[0].place_name;

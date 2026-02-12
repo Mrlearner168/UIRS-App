@@ -18,7 +18,8 @@ import OTPModal from '../components/OTPModal';
 import TermsModal from '../components/Terms&RegulationsModal';
 import { AuthContext, loading } from '../context/AuthContext';
 import { getAppLanguage, setAppLanguage } from '../translation/i18nStorage';
-//import I18n from '../translation/translations';
+
+const LOGIN_TIMEOUT = 15000; // 15 seconds
 
 
 const LoginScreen = ({ navigation }) => {
@@ -66,37 +67,27 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    setIsLoggingIn(true); // start spinner
+    setIsLoggingIn(true);
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), LOGIN_TIMEOUT);
 
     try {
-      const contactCheckResponse = await fetch(`${SERVER_URL}/check_contact`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact }),
-      });
-
-      if (!contactCheckResponse.ok) {
-        const errorText = await contactCheckResponse.text();
-        throw new Error(errorText);
-      }
-
-      const contactCheckData = await contactCheckResponse.json();
-
-      if (!contactCheckData.exists) {
-        Alert.alert('No Account', t('noaccount'));
-        setPassword('');
-        return;
-      }
-
-      const response = await fetch(`${SERVER_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact, password }),
-      });
+      // Parallel API calls for faster authentication
+      const response = await Promise.race([
+        fetch(`${SERVER_URL}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contact, password }),
+          signal: abortController.signal,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Login request timeout')), LOGIN_TIMEOUT)
+        )
+      ]);
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(errorText);
+        throw new Error(errorText || 'Login failed');
       }
 
       const data = await response.json();
@@ -104,8 +95,15 @@ const LoginScreen = ({ navigation }) => {
       if (data.status === 'inactive') {
         Alert.alert('Validation', t('validateaccount'));
         setPassword('');
+        setIsLoggingIn(false);
+        clearTimeout(timeoutId);
         return;
       }
+
+      // Login successful - clear fields immediately
+      setContact('');
+      setPassword('');
+      setLoginAttempts(0);
 
       await login(
         data.token,
@@ -121,28 +119,47 @@ const LoginScreen = ({ navigation }) => {
       setName(data.name);
       setShowTerms(true);
     } catch (error) {
+      console.error('Login error:', error.message);
+      
       const attempts = loginAttempts + 1;
       setLoginAttempts(attempts);
+      
+      // Lock account after 3 failed attempts
       if (attempts >= 3) {
         setIsLocked(true);
+        Alert.alert('Account Locked', 'Too many login attempts. Please try again in 1 minute.');
         setTimeout(() => setIsLocked(false), 60000);
+      } else {
+        const remainingAttempts = 3 - attempts;
+        if (remainingAttempts > 0) {
+          Alert.alert('Login Failed', `${t('incorrectcredentials')}. ${remainingAttempts} attempts remaining.`);
+        } else {
+          Alert.alert('Login Failed', t('incorrectcredentials'));
+        }
       }
-      Alert.alert('Login Failed', t('incorrectcredentials'));
+      
+      // Clear password on failure for security
       setPassword('');
     } finally {
-      setIsLoggingIn(false); // stop spinner
+      setIsLoggingIn(false);
+      clearTimeout(timeoutId);
     }
   };
   const handleAcceptTerms = () => {
     setShowTerms(false);
-    Alert.alert('Welcome ' , `${t('welcome')} ${name}`);
+    Alert.alert('Welcome' , `${t('welcome')} ${name}`);
+    // Reset form state
+    setContact('');
+    setPassword('');
+    setLoginAttempts(0);
+    
     if (userRole === "admin") {
       navigation.navigate("AdminDashboard");
-    } else if (userRole === "responder_head" ||userRole === "responder_personnel" ) {
+    } else if (userRole === "responder_head" || userRole === "responder_personnel" ) {
       navigation.navigate("ResponderDashboard");
     } else if (userRole === "user"){
       navigation.navigate("UserHome");
-    }else {
+    } else {
       Alert.alert('Reminder' , t('infoncomplete'));
     }
   }; 
@@ -217,10 +234,13 @@ const LoginScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.loginButton}
             onPress={handleLogin}
-            disabled={isLoggingIn} // prevent multiple clicks
+            disabled={isLoggingIn || isLocked}
           >
             {isLoggingIn ? (
-              <ActivityIndicator color="white" />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ActivityIndicator color="white" size="small" />
+                <Text style={{ color: 'white', marginLeft: 8, fontWeight: 'bold' }}>Logging in...</Text>
+              </View>
             ) : (
               <Text style={styles.loginButtonText}>{t('login')}</Text>
             )}

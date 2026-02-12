@@ -68,7 +68,7 @@ const RegisterScreen = ({ navigation }) => {
           text: "Camera",
           onPress: async () => {
             let result = await ImagePicker.launchCameraAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              mediaTypes: [ImagePicker.MediaType.image],
               allowsEditing: true,
               aspect: [4, 3],
               quality: 1,
@@ -88,7 +88,7 @@ const RegisterScreen = ({ navigation }) => {
           text: "Gallery",
           onPress: async () => {
             let result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              mediaTypes: [ImagePicker.MediaType.image],
               allowsEditing: true,
               aspect: [4, 3],
               quality: 1,

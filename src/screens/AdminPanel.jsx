@@ -1,16 +1,21 @@
 import { SERVER_URL } from "@env";
 import NetInfo from "@react-native-community/netinfo";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import axios from "axios";
+import { Image as ExpoImage } from "expo-image";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
+  Alert,
+  Animated,
   FlatList,
   Image,
   Linking,
   Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -39,11 +44,26 @@ const AdminPanel = () => {
   const [reportersModalVisible, setReportersModalVisible] = useState(false);
   const [currentReporters, setCurrentReporters] = useState([]);
   const [pickerVisibleIncidentId, setPickerVisibleIncidentId] = useState(null);
+  const [imageLoadingState, setImageLoadingState] = useState({}); // Track loading state per image
+  const [fullImageViewerVisible, setFullImageViewerVisible] = useState(false);
+  const pendingRequestsRef = useRef({}); // Prevent duplicate requests
+  const [fullImageIndex, setFullImageIndex] = useState(0);
+  const [loadingIncidentDetails, setLoadingIncidentDetails] = useState({});
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingTipIndex, setLoadingTipIndex] = useState(0);
 
   const { t } = useTranslation();
   const intervalRef = useRef(null);
   const isFetchingRef = useRef(false);
   const navigation = useNavigation();
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const loadingTips = [
+    t('loading') || 'Loading incidents...',
+    'Fetching latest emergency reports...',
+    'Syncing data with server...',
+    'Organizing incident information...'
+  ];
   //console.log(SERVER_URL);
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) =>
@@ -77,6 +97,30 @@ const AdminPanel = () => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
+
+  // Handle image load with error state tracking
+  const handleImageLoad = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: false, loaded: true }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []); // Empty dependency array
+
+  const handleImageError = useCallback((uri) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { loading: false, error: true, loaded: false }
+    }));
+    delete pendingRequestsRef.current[uri]; // Remove from pending
+  }, []);
+
+  const setImageLoading = useCallback((uri, loading) => {
+    setImageLoadingState(prev => ({
+      ...prev,
+      [uri]: { ...prev[uri], loading }
+    }));
+  }, []);
 
   const getReadableAddress = useCallback(async (location) => {
     if (!location) return "Location unavailable";
@@ -178,13 +222,77 @@ const AdminPanel = () => {
     }
   }, []);
 
+  // Enhanced loading animation
+  useEffect(() => {
+    if (!initialLoading) return;
+
+    const pulseAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulseAnim.start();
+
+    return () => {
+      pulseAnim.stop();
+    };
+  }, [initialLoading]);
+
+  // Cycle loading tips
+  useEffect(() => {
+    if (!initialLoading) return;
+    const tipInterval = setInterval(() => {
+      setLoadingTipIndex(prev => (prev + 1) % loadingTips.length);
+    }, 2000);
+    return () => clearInterval(tipInterval);
+  }, [initialLoading, loadingTips.length]);
+
   useEffect(() => {
     const loadCached = async () => {
       const cached = await EncryptedStorage.getItem("cached_incidents");
       if (cached) setIncidents(JSON.parse(cached));
+      setInitialLoading(false);
     };
     loadCached();
   }, []);
+
+  // Auto-fetch and verify token when screen focused
+  useFocusEffect(
+    useCallback(() => {
+      const verifyTokenAndFetch = async () => {
+        try {
+          const token = await EncryptedStorage.getItem('token');
+          if (!token) {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+            return;
+          }
+          const updated = await fetchAndCacheIncidents();
+          if (updated) setIncidents(updated);
+          await fetchReportCounts();
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        }
+      };
+      verifyTokenAndFetch();
+    }, [fetchAndCacheIncidents, fetchReportCounts, navigation])
+  );
 
   useEffect(() => {
     if (!isOnline) return;
@@ -221,12 +329,6 @@ const AdminPanel = () => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${encodedLocation}`;
     Linking.openURL(url).catch((err) => console.log("Failed to open Google Maps:", err));
   };
-
-  const openImageModal = (mediaArray, index) => {
-    setSelectedMedia(mediaArray);
-    setCurrentImageIndex(index);
-    setModalVisible(true);
-  };
   const handleToggleStatus = (status) => {
     const statusMap = {
       cancelled: { color: "red", text: "Alert" },
@@ -245,7 +347,7 @@ const AdminPanel = () => {
     done: incidents.filter(i => i.status === 'done').length,
     all: incidents.length
   };
-
+  //console.log("All Incidents:", JSON.stringify(incidents, null, 2));
   const filteredIncidents = incidents.filter(
     (incident) =>
       (!statusFilter || incident.status === statusFilter) &&
@@ -304,7 +406,34 @@ const AdminPanel = () => {
         </Text>
       )}
 
-      {filteredIncidents.length === 0 ? (
+      {initialLoading ? (
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingContent}>
+            <Animated.View
+              style={[
+                styles.loadingIconWrapper,
+                {
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              <ActivityIndicator size="large" color="#007BFF" />
+            </Animated.View>
+            <Text style={styles.loadingMainText}>Loading Dashboard</Text>
+            <Text style={styles.loadingTipText}>
+              {loadingTips[loadingTipIndex]}
+            </Text>
+            <View style={styles.loadingDotsContainer}>
+              {[0, 1, 2].map((dot) => (
+                <View
+                  key={dot}
+                  style={styles.loadingDot}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+      ) : filteredIncidents.length === 0 ? (
         <Text style={styles.noReportsText}>No reports found</Text>
       ) : (
         <FlatList
@@ -541,19 +670,73 @@ const AdminPanel = () => {
                 </TouchableOpacity>
               )}
               <View style={styles.mediaContainer}>
+                <Text style={styles.mediaTitle}>
+                  📷 Media Evidence ({item.media?.length || 0} files)
+                </Text>
                 {isOnline && item.media && item.media.length > 0 ? (
-                  item.media.map((mediaItem, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => openImageModal(item.media, index)}
-                    >
-                      <Image source={{ uri: mediaItem }} style={styles.image} />
-                    </TouchableOpacity>
-                  ))
+                  <View style={styles.mediaGrid}>
+                    {item.media.map((mediaItem, index) => {
+                      const imageState = imageLoadingState[mediaItem] || { loading: true, error: false, loaded: false };
+                      const isError = imageState.error;
+                      const isLoading = imageState.loading && !imageState.loaded;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={index}
+                          style={[styles.imageWrapper, isError && styles.imageErrorWrapper]}
+                          onPress={() => {
+                            if (!isError) {
+                              setSelectedMedia(item.media.filter(m => !imageLoadingState[m]?.error));
+                              setCurrentImageIndex(item.media.filter(m => !imageLoadingState[m]?.error).indexOf(mediaItem));
+                              setFullImageViewerVisible(true);
+                            }
+                          }}
+                          disabled={isError}
+                        >
+                          {isLoading && (
+                            <View style={styles.imageLoadingContainer}>
+                              <ActivityIndicator size="large" color="#007BFF" />
+                              <Text style={styles.loadingText}>Loading...</Text>
+                            </View>
+                          )}
+                          {!isError ? (
+                            <ExpoImage
+                              source={{ uri: mediaItem }}
+                              style={[styles.image, isLoading && { opacity: 0.5 }]}
+                              contentFit="cover"
+                              cachePolicy="memory-disk"
+                              onLoad={() => handleImageLoad(mediaItem)}
+                              onError={() => handleImageError(mediaItem)}
+                              onLoadStart={() => setImageLoading(mediaItem, true)}
+                            />
+                          ) : (
+                            <View style={styles.imageErrorView}>
+                              <Icon name="broken-image" size={40} color="#999" />
+                              <Text style={styles.imageErrorText}>Failed to load</Text>
+                            </View>
+                          )}
+                          <Text style={styles.imageIndex}>{index + 1}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 ) : (
-                  <TouchableOpacity onPress={() => openImageModal([PLACEHOLDER_URI], 0)}>
-                    <Image source={{ uri: PLACEHOLDER_URI }} style={styles.image} />
-                  </TouchableOpacity>
+                  <View style={styles.noMediaContainer}>
+                    <TouchableOpacity onPress={() => {
+                      setSelectedMedia([PLACEHOLDER_URI]);
+                      setCurrentImageIndex(0);
+                      setFullImageViewerVisible(true);
+                    }}>
+                      <Image 
+                        source={{ uri: PLACEHOLDER_URI }} 
+                        style={styles.placeholderImage}
+                        onError={() => console.log('Placeholder image failed to load')}
+                      />
+                    </TouchableOpacity>
+                    <Text style={styles.noMediaText}>
+                      {!isOnline ? "Media unavailable (offline)" : "No images attached"}
+                    </Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -564,26 +747,47 @@ const AdminPanel = () => {
         />
       )}
 
+      {/* Full Screen Image Viewer */}
       <ImageViewing
         images={selectedMedia.map((uri) => ({ uri }))}
         imageIndex={currentImageIndex}
-        visible={isModalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        visible={fullImageViewerVisible}
+        onRequestClose={() => setFullImageViewerVisible(false)}
         onImageIndexChange={(index) => setCurrentImageIndex(index)}
+        backgroundColor="rgba(0, 0, 0, 0.95)"
+        FooterComponent={({ imageIndex }) => (
+          <View style={styles.imageFooter}>
+            <Text style={styles.imageFooterText}>
+              {imageIndex + 1} / {selectedMedia.length}
+            </Text>
+          </View>
+        )}
       />
 
       {reportersModalVisible && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={{ fontWeight: "bold", marginBottom: 10 }}>Reporters</Text>
-            {currentReporters.map((name, index) => (
-              <Text key={index}>{name.trim()}</Text>
-            ))}
+            <Text style={{ fontWeight: "bold", marginBottom: 10, fontSize: 16 }}>
+              📋 Reporters Information
+            </Text>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {currentReporters.length > 0 ? (
+                currentReporters.map((name, index) => (
+                  <Text key={index} style={styles.reporterItem}>
+                    {index + 1}. {name.trim()}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.reporterItem}>No reporter data available</Text>
+              )}
+            </ScrollView>
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setReportersModalVisible(false)}
             >
-              <Text style={{ color: "#fff", textAlign: "center" }}>Close</Text>
+              <Text style={{ color: "#fff", textAlign: "center", fontWeight: "bold" }}>
+                Close
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -593,38 +797,210 @@ const AdminPanel = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 14 },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 20, marginTop: 18, textAlign: "center" },
-  noReportsText: { textAlign: "center", marginTop: 30, fontSize: 20 },
-  searchInput: { borderLeftWidth: 3, borderRightWidth: 3, height: 40, borderColor: "gray", borderWidth: 1, marginBottom: 10, marginLeft: 10, marginRight: 10, paddingHorizontal: 20, borderRadius: 5 , backgroundColor: "#f0f0f0" , color: "#000" },
-  card: { backgroundColor: "#f9f9f9", padding: 15, borderRadius: 10, marginBottom: 10 },
-  mediaContainer: { flexDirection: "row", flexWrap: "wrap", marginVertical: 10 },
-  image: { width: 100, height: 100, resizeMode: "cover", margin: 5 },
-  locationText: { color: "blue", textDecorationLine: "underline" },
-  trackButton: { backgroundColor: "#007BFF", padding: 10, borderRadius: 5, marginTop: 10 },
-  trackButtonText: { color: "#fff", textAlign: "center", fontWeight: "bold" },
+  container: { flex: 1, padding: 14, backgroundColor: "#fff" },
+  heading: { 
+    fontSize: 22, 
+    fontWeight: "bold", 
+    marginBottom: 20, 
+    marginTop: 18, 
+    textAlign: "center",
+    color: "#333"
+  },
+  noReportsText: { 
+    textAlign: "center", 
+    marginTop: 30, 
+    fontSize: 20,
+    color: "#999"
+  },
+  searchInput: { 
+    borderLeftWidth: 3, 
+    borderRightWidth: 3, 
+    height: 40, 
+    borderColor: "gray", 
+    borderWidth: 1, 
+    marginBottom: 10, 
+    marginLeft: 10, 
+    marginRight: 10, 
+    paddingHorizontal: 20, 
+    borderRadius: 5,
+    backgroundColor: "#f0f0f0",
+    color: "#000",
+    fontSize: 16
+  },
+  card: { 
+    backgroundColor: "#f9f9f9", 
+    padding: 15, 
+    borderRadius: 10, 
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  mediaContainer: { 
+    marginVertical: 15,
+    backgroundColor: "#fafafa",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e8e8e8"
+  },
+  mediaTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 12,
+    marginLeft: 0
+  },
+  mediaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  imageWrapper: {
+    position: "relative",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#e8e8e8",
+    borderWidth: 2,
+    borderColor: "#d0d0d0"
+  },
+  imageErrorWrapper: {
+    borderColor: "#ff6b6b",
+    backgroundColor: "#ffe8e8"
+  },
+  image: { 
+    width: 150, 
+    height: 150, 
+    resizeMode: "cover"
+  },
+  placeholderImage: {
+    width: 150,
+    height: 150,
+    resizeMode: "cover",
+    borderRadius: 8
+  },
+  imageLoadingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    zIndex: 10
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#007BFF",
+    fontWeight: "600"
+  },
+  imageErrorView: {
+    width: 150,
+    height: 150,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#ffe8e8"
+  },
+  imageErrorText: {
+    marginTop: 8,
+    fontSize: 11,
+    color: "#ff6b6b",
+    fontWeight: "600"
+  },
+  imageIndex: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    color: "#fff",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    fontSize: 12,
+    fontWeight: "bold"
+  },
+  noMediaContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20
+  },
+  noMediaText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#999",
+    fontStyle: "italic"
+  },
+  imageFooter: {
+    paddingBottom: 20,
+    alignItems: "center"
+  },
+  imageFooterText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  locationText: { 
+    color: "blue", 
+    textDecorationLine: "underline",
+    marginVertical: 4,
+    fontSize: 14
+  },
+  trackButton: { 
+    backgroundColor: "#007BFF", 
+    padding: 12, 
+    borderRadius: 5, 
+    marginTop: 10,
+    alignItems: "center"
+  },
+  trackButtonText: { 
+    color: "#fff", 
+    textAlign: "center", 
+    fontWeight: "bold",
+    fontSize: 16
+  },
   modalOverlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 10
+    zIndex: 999
   },
   modalContent: {
     backgroundColor: "#fff",
     padding: 20,
-    borderRadius: 10,
-    width: "80%"
+    borderRadius: 12,
+    width: "85%",
+    maxHeight: "70%",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8
+  },
+  reporterItem: {
+    fontSize: 14,
+    color: "#333",
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0"
   },
   closeButton: {
-    backgroundColor: "#007BFF",
-    padding: 10,
+    backgroundColor: "#28a745",
+    padding: 12,
     borderRadius: 5,
-    marginTop: 10
+    marginTop: 15,
+    alignItems: "center"
   },
   pickerBox: {
     borderWidth: 1,
@@ -636,57 +1012,103 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#f2f2f2",
-    marginTop: 5,
-    color: "#000",
-    
+    marginTop: 5
   },
   ongoingNoticeBox: {
-  backgroundColor: '#FFF4E5',
-  borderLeftWidth: 5,
-  borderLeftColor: '#FFA500',
-  padding: 10,
-  borderRadius: 8,
-  marginTop: 8,
-},
-ongoingNoticeTitle: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#FF8C00',
-  marginBottom: 4,
-},
-doneNoticeBox: {
-  backgroundColor: '#FFF4E5',
-  borderLeftWidth: 5,
-  borderLeftColor: '#5cee49ff',
-  padding: 10,
-  borderRadius: 8,
-  marginTop: 8,
-},
-doneNoticeTitle: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#22ec29ff',
-  marginBottom: 4,
-},
-cancelNoticeBox: {
-  backgroundColor: '#FFF4E5',
-  borderLeftWidth: 5,
-  borderLeftColor: '#e10d0dff',
-  padding: 10,
-  borderRadius: 8,
-  marginTop: 8,
-},
-cancelNoticeTitle: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: 'hsla(0, 88%, 44%, 1.00)',
-  marginBottom: 4,
-},
-ongoingNoticeText: {
-  fontSize: 14,
-  color: '#555',
-  lineHeight: 20,
-},
+    backgroundColor: '#FFF4E5',
+    borderLeftWidth: 5,
+    borderLeftColor: '#FFA500',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  ongoingNoticeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF8C00',
+    marginBottom: 4,
+  },
+  doneNoticeBox: {
+    backgroundColor: '#E8F5E9',
+    borderLeftWidth: 5,
+    borderLeftColor: '#5cee49ff',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  doneNoticeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#22ec29ff',
+    marginBottom: 4,
+  },
+  cancelNoticeBox: {
+    backgroundColor: '#FFF4E5',
+    borderLeftWidth: 5,
+    borderLeftColor: '#e10d0dff',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  cancelNoticeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'hsla(0, 88%, 44%, 1.00)',
+    marginBottom: 4,
+  },
+  ongoingNoticeText: {
+    fontSize: 14,
+    color: '#555',
+    lineHeight: 20,
+  },
+  date: {
+    marginVertical: 8,
+    color: "#666",
+    fontSize: 13
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingContent: {
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  loadingIconWrapper: {
+    marginBottom: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingMainText: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  loadingTipText: {
+    fontSize: 16,
+    color: "#007BFF",
+    textAlign: "center",
+    marginBottom: 20,
+    fontWeight: "500",
+    minHeight: 24,
+  },
+  loadingDotsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  loadingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#007BFF",
+    opacity: 0.5,
+  }
 });
 
 export default AdminPanel;

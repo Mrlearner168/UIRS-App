@@ -89,8 +89,9 @@ i18n.use(initReactI18next).init({
         campermission:'Camera permission not granted',
         duplicateincident:'There seems to be an existing report of a similar incident nearby. Do you still want to submit this report?',
         successrep:'Incident report submitted successfully.',
-        messpermission:'SMS permission is required to send reports.',
-        enableperset:'Enable location permission from settings.',
+        messpermission:'SMS permission is required to send reports. Do you want to allow it?',
+        enableperset:'Location permission is required. Open app settings to allow it.',
+        duplicatealert:'You already reported this incident. Please avoid multiple reports for the same accident.',
         //profile
         firstname:'First Name',
         lastname:'Last Name',
@@ -316,8 +317,8 @@ i18n.use(initReactI18next).init({
         acceptstat:'Your station status if you want to Accept your current station status to this incident is ',
         resupdated:'Responder status updated successfully.',
         subtyperequired:'Select Sub-type of ',
-        subtyperequiredtittle:'Sub-type of '
-
+        subtyperequiredtittle:'Sub-type of ',
+        allowlocation:'This app needs location access to send reports. Allow permission?',
       },
     },
     fil: {
@@ -403,8 +404,9 @@ i18n.use(initReactI18next).init({
         campermission:'Hindi pinayagan ang permiso ng kamera',
         duplicateincident:'Mukhang may umiiral nang ulat ng katulad na insidente malapit dito. Gusto mo pa bang isumite ang ulat na ito?',
         successrep:'Matagumpay na naisumite ang ulat ng insidente.',
-        messpermission:'Kinakailangan ang permiso sa SMS upang magpadala ng ulat.',
+        messpermission:'Kinakailangan ang permiso sa SMS upang magpadala ng ulat. Gusto mo bang payagan ito?',
         enableperset:'Paganahin ang permiso sa lokasyon mula sa settings.',
+        duplicatealert:'Na-report mo na ang insidente na ito. Iwasan ang pag-uulat ng maraming ulat para sa parehong aksidente.',
         //profile
         firstname:'Pangalan',
         savephoto: 'I-save ang Litrato',
@@ -722,8 +724,17 @@ i18n.use(initReactI18next).init({
         campermission:'Wala ginhatagan sang permiso ang kamera',
         duplicateincident:'Daw may pareho nga report sang insidente malapit diri. Gusto mo gihapon isumite ang sini nga report?',
         successrep:'Madasig nga na-submit ang report sang insidente.',
-        messpermission:'Kinahanglan ang permiso sa SMS para makasend sang report.',
+        messpermission:'Kinahanglan ang permiso sa SMS para makasend sang report. Gusto mo bala ini paghatagan?',
         enableperset:'I-on ang permiso sa lokasyon sa settings.',
+        duplicatealert:'Na report mo na ang sini nga insidente. Likawan ang madamo nga report para sa pareho nga aksidente.',
+        //successrep:'Madasig nga na-submit ang report sang insidente.',
+        yourreports:'Imo mga Incident Report',
+        norep:'Wala sang nahanap nga report',
+        viewdetails:'Tan-awa ang Detalye',
+        removereport:'Kon gusto mo burahon ini nga report... pinduta diri',
+        youcancel:'Ginkanselar mo ang imo report.',
+        reportongoing:'Padayon ang pag respond sang mga Responder. Hulata anay.',
+        remove:'Burahon',
         //profile
         firstname:'Ngalan',
         savephoto: 'I-save ang Litrato',
