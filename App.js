@@ -24,6 +24,7 @@ import {
   Vibration,
   View
 } from 'react-native';
+import DeviceInfo from 'react-native-device-info';
 // Added missing import for EncryptedStorage used in App component
 import EncryptedStorage from 'react-native-encrypted-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -60,7 +61,7 @@ import UpdatesScreen from './src/screens/UpdatesScreen';
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
-
+const { AutoStartModule, OverlayPermissionModule } = NativeModules;
 function AppInitializer({ initialProps }) {
   // listener mounts once
   useGlobalIncidentListener();
@@ -686,59 +687,126 @@ export default function App(props) {
   }, []);
   
   const requestAllPermissions = async () => {
+    console.log("Starting Robust Permission Check...");
+  
     try {
-      // 1. Standard Android Permissions (SMS, Camera, Location)
       if (Platform.OS === 'android') {
-        await PermissionsAndroid.requestMultiple([
+      
+        // ---------------------------------------------------------
+        // 1. STANDARD ANDROID PERMISSIONS
+        // ---------------------------------------------------------
+        const permissionsToRequest = [
           PermissionsAndroid.PERMISSIONS.SEND_SMS,
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-        ]);
-      }
-
-      await Location.requestForegroundPermissionsAsync();
-      await ImagePicker.requestCameraPermissionsAsync();
-
-      // 2. Critical Emergency Permissions (Android 14+ Full Screen)
-      if (Platform.OS === 'android') {
-        const settings = await notifee.getNotificationSettings();
-        
-        // Check Full Screen Intent (Value 1 is authorized)
-        if (Platform.Version >= 34 && settings.android.fullScreenIntent !== 1) {
-          Alert.alert(
-            'Emergency Access Required',
-            'To wake your phone during an emergency, please enable "Allow full screen intents".',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Open Settings',
-                onPress: () => Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT', [
-                  { key: 'package', value: 'com.rogerskie09.uirsv4' }
-                ]),
-              },
-            ]
-          );
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS, // Safe on RN 0.70+
+        ].filter(Boolean);
+      
+        try {
+          await PermissionsAndroid.requestMultiple(permissionsToRequest);
+        } catch (e) { 
+          console.warn("Standard perm error", e); 
         }
-
-        // 3. Battery Optimization (Crucial for background wake)
-        const isOptimized = await notifee.isBatteryOptimizationEnabled();
-        if (isOptimized) {
+      
+        // ---------------------------------------------------------
+        // 2. EXPO PERMISSIONS (Safe Wrap)
+        // ---------------------------------------------------------
+        try { await Location.requestForegroundPermissionsAsync(); } catch(e) {}
+        try { await ImagePicker.requestCameraPermissionsAsync(); } catch(e) {}
+      
+        // ---------------------------------------------------------
+        // 3. OVERLAY / DRAW OVER APPS (Using Native Module)
+        // ---------------------------------------------------------
+        let canDraw = false;
+        try {
+            // Use your custom module for a reliable check
+            canDraw = await OverlayPermissionModule.isOverlayPermissionGranted();
+        } catch (e) {
+            console.warn("Overlay Check Failed:", e);
+        }
+      
+        if (!canDraw) {
+            Alert.alert(
+                '⚠️ Screen Access Required',
+                'To show the emergency screen immediately over other apps, please allow "Display over other apps".',
+                [
+                    { text: 'Later', style: 'cancel' },
+                    { 
+                        text: 'Go to Settings', 
+                        onPress: async () => {
+                            // Use your custom module to open the direct page
+                            try {
+                                await OverlayPermissionModule.requestOverlayPermission();
+                            } catch (e) {
+                                Linking.openSettings();
+                            }
+                        } 
+                    }
+                ]
+            );
+        }
+      
+        // ---------------------------------------------------------
+        // 4. SOUND / DND PERMISSION
+        // ---------------------------------------------------------
+        // Check if we can bypass DND (Do Not Disturb)
+        const settings = await notifee.getNotificationSettings();
+        if (settings.android.alarm !== 1) { // 1 = Authorized
+            Alert.alert(
+                '⚠️ Sound Permission',
+                'To ensure the alarm rings loudly even in Silent/DND mode, please allow "Alarms & Reminders" or "DND Access".',
+                [
+                    { text: 'Later', style: 'cancel' },
+                    { 
+                        text: 'Go to Settings', 
+                        onPress: () => Linking.sendIntent('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS')
+                    }
+                ]
+            );
+        }
+      
+        // ---------------------------------------------------------
+        // 5. AUTOSTART (Manufacturer Specific)
+        // ---------------------------------------------------------
+        const hasVerifiedAutostart = await EncryptedStorage.getItem('autostart_verified_v2'); 
+        const brand = DeviceInfo.getBrand().toLowerCase();
+        const aggressiveBrands = ['vivo', 'oppo', 'xiaomi', 'redmi', 'realme', 'huawei', 'honor', 'iqoo', 'oneplus'];
+        
+        // Only ask if it's a known brand AND we haven't asked before
+        if (aggressiveBrands.includes(brand) && !hasVerifiedAutostart) {
           Alert.alert(
-            'Battery Restriction Detected',
-            'To ensure you receive alerts instantly, set battery to "Unrestricted".',
+            `🚨 Action Required for ${brand.toUpperCase()}`,
+            `To ensure the alarm rings when the app is closed, you MUST enable "Autostart".\n\n1. Tap "Configure Now"\n2. Find this app in the list\n3. Turn ON the switch`,
             [
               { text: 'Later', style: 'cancel' },
-              { 
-                text: 'Open Settings', 
-                onPress: () => notifee.openBatteryOptimizationSettings() 
-              },
-            ]
+              {
+                text: 'CONFIGURE NOW',
+                onPress: async () => {
+                  // Save that we asked, so we don't spam the user every time
+                  await EncryptedStorage.setItem('autostart_verified_v2', 'true');
+                  
+                  // Use your custom AutoStart Module
+                  try {
+                    const success = await AutoStartModule.openAutoStartSettings();
+                    if (!success) {
+                        // If specific intent failed, fallback to app details
+                        Linking.openSettings();
+                    }
+                  } catch (e) {
+                    console.warn("Autostart module failed", e);
+                    Linking.openSettings();
+                  }
+                }
+              }
+            ],
+            { cancelable: false }
           );
         }
+      
       }
     } catch (err) {
-      console.error('Permission Error:', err);
+      console.error('CRITICAL: Permission Flow Failed', err);
     }
-  };
+};
   function MainApp() {
     const fcmToken = useFCMToken(); // hook runs only if logged in
     console.log('FCM token:', fcmToken);

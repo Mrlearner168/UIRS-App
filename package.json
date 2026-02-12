@@ -50,6 +50,7 @@
     "react-i18next": "^16.2.4",
     "react-native": "0.79.6",
     "react-native-chart-kit": "^6.12.0",
+    "react-native-device-info": "^15.0.1",
     "react-native-dotenv": "^3.4.11",
     "react-native-elements": "^3.4.3",
     "react-native-encrypted-storage": "^4.0.3",

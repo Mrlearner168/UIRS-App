@@ -67,86 +67,98 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
-    private fun sendEmergencyNotification(title: String, body: String, data: Map<String, String>) {
+    private fun sendEmergencyNotification(
+        title: String,
+        body: String,
+        data: Map<String, String>
+    ) {
         try {
-            // 1. Check Permission (Android 13+) to prevent silent failures
+            // 1. Check notification permission (Android 13+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    Log.e(TAG, "❌ Missing POST_NOTIFICATIONS permission. Cannot display emergency alert.")
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.e(TAG, "❌ Missing POST_NOTIFICATIONS permission.")
                     return
                 }
             }
 
-            // 2. Wake Lock (10 seconds)
+            // 2. Optional CPU Wake (short, only if processing needed)
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             val wakeLock = powerManager.newWakeLock(
-                PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, 
                 "UIRS:EmergencyWakeLock"
             )
-            wakeLock.acquire(10 * 1000L) 
+            wakeLock.acquire(15000L) // 15 seconds
 
-            // 3. Channel Setup with Audio Attributes (Bypass Media Volume)
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Define Sound
-                val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                
-                // Define Audio Attributes (Usage ALARM is critical for breaking through Do Not Disturb)
-                val audioAttributes = AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+            try {
+                // 3. Notification Channel Setup (Android 8+)
+                val notificationManager =
+                    getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    val audioAttributes = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+
+                    val channel = NotificationChannel(
+                        EMERGENCY_CHANNEL_ID,
+                        "Emergency Alerts",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+                        description = "Emergency Alerts"
+                        setBypassDnd(true)
+                        enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 1000, 500, 1000, 500, 1000)
+                        setSound(soundUri, audioAttributes)
+                        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                        setShowBadge(true)
+                    }
+
+                    notificationManager.createNotificationChannel(channel)
+                }
+
+                // 4. Full Screen Intent to open app dashboard
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra("navigate_to", "responder_dashboard")
+                    putExtra("is_emergency", true)
+                    for ((key, value) in data) putExtra(key, value)
+                }
+
+                val fullScreenIntent = PendingIntent.getActivity(
+                    this,
+                    EMERGENCY_NOTIFICATION_ID,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                // 5. Build Notification
+                val notification = NotificationCompat.Builder(this, EMERGENCY_CHANNEL_ID)
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)  // key change
+                    .setFullScreenIntent(fullScreenIntent, true)
+                    .setOngoing(true)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setAutoCancel(false)
+                    .setVibrate(longArrayOf(0, 1000, 500, 1000, 500, 1000))
                     .build()
 
-                val channel = NotificationChannel(
-                    EMERGENCY_CHANNEL_ID,
-                    "Emergency Alerts",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Emergency Alerts"
-                    setBypassDnd(true)
-                    enableVibration(true)
-                    vibrationPattern = longArrayOf(0, 1000, 500, 1000, 500, 1000) // Longer vibration
-                    setSound(soundUri, audioAttributes) // Apply the alarm attributes
-                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-                    setShowBadge(true)
-                }
-                notificationManager.createNotificationChannel(channel)
+                notificationManager.notify(EMERGENCY_NOTIFICATION_ID, notification)
+                Log.d(TAG, "🚀 EMERGENCY NOTIFICATION POSTED")
+
+            } finally {
+                if (wakeLock.isHeld) wakeLock.release()
             }
-
-            // 4. Intent Setup
-            val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra("navigate_to", "responder_dashboard")
-                putExtra("is_emergency", true)
-                for ((key, value) in data) {
-                    putExtra(key, value)
-                }
-            }
-            
-            val fullScreenIntent = PendingIntent.getActivity(
-                this, 
-                EMERGENCY_NOTIFICATION_ID, 
-                intent, 
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            // 5. Notification Build
-            val notification = NotificationCompat.Builder(this, EMERGENCY_CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher) 
-                .setContentTitle(title)
-                .setContentText(body)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setFullScreenIntent(fullScreenIntent, true) 
-                .setOngoing(true) 
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setAutoCancel(false)
-                .setVibrate(longArrayOf(0, 1000, 500, 1000, 500, 1000))
-                .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
-                .build()
-
-            notificationManager.notify(EMERGENCY_NOTIFICATION_ID, notification)
-            Log.d(TAG, "🚀 EMERGENCY NOTIFICATION POSTED")
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ ERROR posting emergency notification: ${e.message}")

@@ -20,27 +20,30 @@ import expo.modules.ReactNativeHostWrapper
 
 class MainApplication : Application(), ReactApplication {
   override val reactNativeHost: ReactNativeHost =
-      ReactNativeHostWrapper(
-          this,
-          object : DefaultReactNativeHost(this) {
-          
-              override fun getPackages(): List<ReactPackage> {
-                  return PackageList(this).packages
-              }
+    ReactNativeHostWrapper(
+        this,
+        object : DefaultReactNativeHost(this) {
+        
+            override fun getPackages(): List<ReactPackage> {
+                val packages = PackageList(this).packages.toMutableList()
+                // Add custom packages here
+                packages.add(OverlayPackage())
+                return packages
+            }
             
-              override fun getJSMainModuleName(): String =
-                  ".expo/.virtual-metro-entry"
-            
-              override fun getUseDeveloperSupport(): Boolean =
-                  BuildConfig.DEBUG
-            
-              override val isNewArchEnabled: Boolean =
-                  BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
-            
-              override val isHermesEnabled: Boolean =
-                  BuildConfig.IS_HERMES_ENABLED
-          }
-      )
+            override fun getJSMainModuleName(): String =
+                ".expo/.virtual-metro-entry"
+        
+            override fun getUseDeveloperSupport(): Boolean =
+                BuildConfig.DEBUG
+        
+            override val isNewArchEnabled: Boolean =
+                BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+        
+            override val isHermesEnabled: Boolean =
+                BuildConfig.IS_HERMES_ENABLED
+        }
+    )
         
   override val reactHost: ReactHost
       get() = ReactNativeHostWrapper.createReactHost(
