@@ -38,6 +38,9 @@ const LoginScreen = ({ navigation }) => {
   const [name , setName] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [language, setLanguage] = useState('en');
+  
+  // NEW: State to hold login data temporarily
+  const [pendingLoginData, setPendingLoginData] = useState(null);
 
   const { t, i18n } = useTranslation();
 
@@ -105,19 +108,14 @@ const LoginScreen = ({ navigation }) => {
       setPassword('');
       setLoginAttempts(0);
 
-      await login(
-        data.token,
-        data.refresh_token,
-        data.id,
-        data.role,
-        data.status,
-        data.station_id,
-        data.is_head
-      );
-
+      // --- CHANGE START ---
+      // Do NOT call login() yet. Store data and show terms first.
+      setPendingLoginData(data); 
       setUserRole(data.role);
       setName(data.name);
       setShowTerms(true);
+      // --- CHANGE END ---
+
     } catch (error) {
       console.error('Login error:', error.message);
       
@@ -145,14 +143,35 @@ const LoginScreen = ({ navigation }) => {
       clearTimeout(timeoutId);
     }
   };
-  const handleAcceptTerms = () => {
+
+  const handleAcceptTerms = async () => {
     setShowTerms(false);
+    
+    // --- CHANGE START ---
+    // Perform the actual login logic here after they click accept
+    if (pendingLoginData) {
+        await login(
+            pendingLoginData.token,
+            pendingLoginData.refresh_token,
+            pendingLoginData.id,
+            pendingLoginData.role,
+            pendingLoginData.status,
+            pendingLoginData.station_id,
+            pendingLoginData.is_head
+        );
+    }
+    // --- CHANGE END ---
+
     Alert.alert('Welcome' , `${t('welcome')} ${name}`);
+    
     // Reset form state
     setContact('');
     setPassword('');
     setLoginAttempts(0);
     
+    // Note: If your 'login' function in Context automatically switches 
+    // the navigation stack (e.g. from AuthStack to AppStack), 
+    // these explicit navigate calls might be redundant, but we keep them just in case.
     if (userRole === "admin") {
       navigation.navigate("AdminDashboard");
     } else if (userRole === "responder_head" || userRole === "responder_personnel" ) {
@@ -160,7 +179,8 @@ const LoginScreen = ({ navigation }) => {
     } else if (userRole === "user"){
       navigation.navigate("UserHome");
     } else {
-      Alert.alert('Reminder' , t('infoncomplete'));
+      // Alert.alert('Reminder' , t('infoncomplete')); 
+      // If logic falls here, ensure they are still navigated somewhere or logged in
     }
   }; 
 
@@ -316,7 +336,7 @@ const styles = StyleSheet.create({
   formContainer: {
     backgroundColor: 'white',
     padding: 20,
-    borderRadius: 10,
+    borderRadius: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -340,7 +360,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 5,
+    borderRadius: 15,
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: '#fff',
@@ -350,7 +370,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 5,
+    borderRadius: 15,
     paddingHorizontal: 10,
     marginBottom: 15,
     backgroundColor: '#fff',
@@ -365,7 +385,7 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: '#007bff',
     padding: 12,
-    borderRadius: 5,
+    borderRadius: 25,
     alignItems: 'center',
     marginBottom: 10,
   },
@@ -389,16 +409,16 @@ const styles = StyleSheet.create({
     right: 20,
     width: 130,
     zIndex: 20,
-    borderRadius: 25,
+    borderRadius: 15,
     padding: 1,
   },
   languagePicker: {
     color: 'black',
     width: '100%',
-    height: 58,
+    height: 50,
     marginRight: 10,
     backgroundColor: '#e0e0e0',
-    borderRadius: 25,
+    borderRadius: 15,
     
   },
   languageRow: {

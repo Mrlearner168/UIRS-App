@@ -15,6 +15,7 @@ import {
   Modal,
   Platform,
   RefreshControl,
+  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,10 +23,12 @@ import {
   View
 } from "react-native";
 import EncryptedStorage from "react-native-encrypted-storage";
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 MapboxGL.setAccessToken(RNMAPBOX_MAPS_DOWNLOAD_TOKEN);
 
 const STATION_TYPES = ["BFP", "PNP", "Ambulance", "Rescuer"];
+const { width, height } = Dimensions.get('window');
 
 export default function AddStationScreen() {
   const navigation = useNavigation();
@@ -60,9 +63,7 @@ export default function AddStationScreen() {
         const storedToken = await EncryptedStorage.getItem("token");
         if (storedToken) {
           setToken(storedToken);
-          console.log("Token found:", storedToken);
         } else {
-          console.log("Token not found, navigating to Login");
           navigation.navigate("Login");
         }
       } catch (error) {
@@ -81,7 +82,6 @@ export default function AddStationScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          console.log("Location permission denied");
           Alert.alert("Permission denied", t('requiredloc'));
           return;
         }
@@ -90,7 +90,6 @@ export default function AddStationScreen() {
         setMarkerCoords(coords);
         setLoadingLocation(false);
       } catch (e) {
-        console.log("Error getting location:", e);
         Alert.alert("Error", e.message);
       }
     })();
@@ -102,9 +101,7 @@ export default function AddStationScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setStations(res.data);
-      //console.log("Stations fetched", res.data);
     } catch (err) {
-      console.log(err);
       Alert.alert("Error fetching stations", err.message);
     }
   };
@@ -142,7 +139,6 @@ export default function AddStationScreen() {
 
   const openModal = () => {
     if (!markerCoords) {
-      console.log("Marker coordinates not ready");
       return Alert.alert(t('locnotready'));
     }
     setModalVisible(true);
@@ -163,7 +159,6 @@ export default function AddStationScreen() {
       );
       setSearchResults(res.data.features || []);
     } catch (e) {
-      console.log("Search failed:", e);
       setSearchResults([]);
     } finally {
       setSearching(false);
@@ -185,19 +180,15 @@ export default function AddStationScreen() {
       setAddressSelected(
         `Lat: ${markerCoords.latitude.toFixed(5)}, Lng: ${markerCoords.longitude.toFixed(5)}`
       );
-    } else {
-      console.log("Cannot confirm location, markerCoords is null");
     }
     setModalVisible(false);
   };
 
   const validate = () => {
     if (!id.trim()) return "Station ID is required";
-    if (!id || id.trim() === "") return "ID is required";
     if (!name.trim()) return "Name is required";
     if (!latitude || !longitude) return "Location not selected";
     if (contact && !/^(09|\+639)\d{9}$/.test(contact.trim())) return "Invalid contact number";
-    if (!type) return "Type is required";
     return null;
   };
 
@@ -232,7 +223,6 @@ export default function AddStationScreen() {
       setEditingStation(null);
       fetchStations();
     } catch (err) {
-      console.error(err);
       Alert.alert(t('stationfailed'));
     }
   };
@@ -243,25 +233,16 @@ export default function AddStationScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       Alert.alert(t('stationdel'));
-      console.log("station_id:" , stationId);
       fetchStations();
     } catch (err) {
-      console.log(err);
-      console.log("station_id:" , stationId);
       Alert.alert(t('delfailed'));
     }
   };
 
   const handleSubmit = async () => {
     const err = validate();
-    if (err) {
-      console.log("Validation failed:", err);
-      return Alert.alert(err);
-    }
-    if (!token) {
-      console.log("Token missing during submit");
-      return Alert.alert("Token missing, please login again");
-    }
+    if (err) return Alert.alert(err);
+    if (!token) return Alert.alert("Token missing, please login again");
 
     setSubmitting(true);
 
@@ -272,19 +253,16 @@ export default function AddStationScreen() {
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch (e) {
-        console.log("Failed to fetch existing stations:", e);
         throw e;
       }
 
       if (check.data.some((station) => station.id === Number(id))) {
-        console.log("Duplicate ID found");
         Alert.alert(t('dupstationid'));
         setSubmitting(false);
         return;
       }
 
       if (contact && check.data.some((station) => station.contact === contact.trim())) {
-        console.log("Duplicate contact found");
         Alert.alert(t('dupcontact'));
         setSubmitting(false);
         return;
@@ -316,21 +294,16 @@ export default function AddStationScreen() {
         facebook: facebook.trim() || null,
       };
 
-      console.log("Submitting payload:", payload);
-
       try {
         const res = await axios.post(`${SERVER_URL}/addstation`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log("Submit success:", res.data);
         Alert.alert(`Station saved: ID ${res.data?.id || "(created)"}`);
         onRefresh();
       } catch (e) {
-        console.log("Submit failed:", e.response?.data || e.message);
         throw e;
       }
     } catch (err) {
-      console.log("Error during handleSubmit:", err);
       Alert.alert(err.response?.data?.error || err.message || "Submit failed");
     } finally {
       setSubmitting(false);
@@ -338,410 +311,536 @@ export default function AddStationScreen() {
   };
   
 
-
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <SafeAreaView style={{flex: 1, backgroundColor: '#F3F4F6'}}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={styles.header}>
+            <Text style={styles.headerTitle}>{t('managestations')}</Text>
+        </View>
 
-      {/* Toggle Buttons */}
-      <View style={styles.switcher}>
-        {["add", "edit", "delete"].map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={[
-                styles.switchButton,
-                activeForm === type && styles.activeSwitchButton,
-              ]}
-              onPress={() => setActiveForm(type)}
-            >
-              <Text
-                style={{
-                  color: activeForm === type ? "#fff" : "#000",
-                  fontWeight: "bold",
-                }}
-              >
-                {type.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-        ))}
-      </View>
-      {/* Add Station Screen */}
-      {activeForm === "add" && (
-        <FlatList
-          data={stations}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ padding: 16 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListHeaderComponent={
-            <>
-              <Text style={styles.title}>{t('addstation')}</Text>
-          
-              <Text style={styles.label}>{t('stationid')}</Text>
-              <TextInput
-                style={styles.input}
-                value={id}
-                onChangeText={setId}
-                placeholder="e.g 1234"
-                placeholderTextColor={"#888"}
-              />
-      
-              <Text style={styles.label}>{t('stationname')}</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder={t('enterstationname')}
-                placeholderTextColor={"#888"}
-              />
-      
-              <Text style={styles.label}>{t('type')}</Text>
-              <View style={styles.pickerWrap}>
-                <Picker selectedValue={type} onValueChange={setType} style={styles.picker}>
-                  {STATION_TYPES.map((t) => (
-                    <Picker.Item key={t} label={t} value={t} />
-                  ))}
-                </Picker>
-              </View>
-                
-              <Text style={styles.label}>{t('stationaddress')}</Text>
-              <TouchableOpacity onPress={openModal}>
-                <TextInput
-                  style={[styles.input, styles.readonly]}
-                  value={addressSelected}
-                  editable={false}
-                />
-              </TouchableOpacity>
-                
-              <Text style={styles.label}>{t('stationcontact')}</Text>
-              <TextInput
-                style={styles.input}
-                value={contact}
-                onChangeText={setContact}
-                placeholder="09xxxxxxxxx"
-              />
-      
-              <Text style={styles.label}>Facebook URL (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={facebook}
-                onChangeText={setFacebook}
-                autoCapitalize="none"
-                placeholder="https://facebook.com/yourpage"
-                placeholderTextColor={"#888"}
-              />
-      
+        {/* Tab Switcher */}
+        <View style={styles.tabContainer}>
+          {["add", "edit", "delete"].map((type) => (
               <TouchableOpacity
-                style={[styles.button, submitting && styles.buttonDisabled]}
-                onPress={handleSubmit}
-                disabled={submitting}
+                key={type}
+                style={[
+                  styles.tabButton,
+                  activeForm === type && styles.activeTabButton,
+                ]}
+                onPress={() => setActiveForm(type)}
               >
-                <Text style={styles.buttonText}>
-                  {submitting ? "Submitting..." : t('savestation')}
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeForm === type && styles.activeTabText,
+                  ]}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
                 </Text>
               </TouchableOpacity>
-            </>
-          }
-        />
-      )}
-      
-      {/*Edit Screen*/}
-      {activeForm === "edit" && (
-        <>
-          <FlatList
-            data={stations}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={{ padding: 16 }}
-            keyboardShouldPersistTaps="handled"
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            renderItem={({ item }) => (
-              <View style={styles.card}>
-                  {editingStation === item.id ? (
-                    <>
-                      <Text style={styles.title}>{t('updatestation')}</Text>
-                      <Text style={styles.label}>{t('stationid')}</Text>
-                      <TextInput
-                        style={[styles.input,{ backgroundColor: '#fff', color: '#000' }]}
-                        value={stationId}
-                        onChangeText={setStationId}
-                        placeholder={t('enterstationid')}
-                        placeholderTextColor={"#888"}
-                      />
-        
-                      <Text style={styles.label}>{t('stationname')}</Text>
-                      <TextInput
-                        style={[styles.input ,{ backgroundColor: '#fff', color: '#000' }]}
+          ))}
+        </View>
+
+        <View style={styles.contentContainer}>
+            {/* Add Station Screen */}
+            {activeForm === "add" && (
+                <FlatList
+                data={[]} // Dummy data just to use FlatList header
+                keyExtractor={() => "dummy"}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+                ListHeaderComponent={
+                    <View style={styles.formCard}>
+                    <Text style={styles.cardTitle}>{t('addstation')}</Text>
+                
+                    <Text style={styles.inputLabel}>{t('stationid')}</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={id}
+                        onChangeText={setId}
+                        placeholder="e.g 1234"
+                        placeholderTextColor={"#9CA3AF"}
+                        keyboardType="numeric"
+                    />
+            
+                    <Text style={styles.inputLabel}>{t('stationname')}</Text>
+                    <TextInput
+                        style={styles.input}
                         value={name}
                         onChangeText={setName}
                         placeholder={t('enterstationname')}
-                        placeholderTextColor={"#888"}
-                      />
-        
-                      <Text style={styles.label}>{t('type')}</Text>
-                      <View style={[styles.pickerWrap, { backgroundColor: '#fff' }]}>
-                        <Picker
-                          selectedValue={type}
-                          onValueChange={setType}
-                          style={[styles.picker, { backgroundColor: '#fff', color: '#000' }]}
-                        >
-                          {STATION_TYPES.map((t) => (
+                        placeholderTextColor={"#9CA3AF"}
+                    />
+            
+                    <Text style={styles.inputLabel}>{t('type')}</Text>
+                    <View style={styles.pickerContainer}>
+                        <Picker selectedValue={type} onValueChange={setType} style={styles.picker}>
+                        {STATION_TYPES.map((t) => (
                             <Picker.Item key={t} label={t} value={t} />
-                          ))}
+                        ))}
                         </Picker>
-                      </View>
+                    </View>
                         
-                      <Text style={styles.label}>{t('location')}</Text>
-                      <TouchableOpacity onPress={() => setModalVisible(true)}>
-                        <TextInput
-                          style={[styles.input, styles.readonly, { backgroundColor: '#fff', color: '#000' }]}
-                          value={addressSelected}
-                          editable={false}
-                        />
-                      </TouchableOpacity>
+                    <Text style={styles.inputLabel}>{t('stationaddress')}</Text>
+                    <TouchableOpacity onPress={openModal} style={styles.locationButton}>
+                        <Icon name="map-marker" size={20} color="#007BFF" style={{marginRight: 8}} />
+                        <Text style={styles.locationButtonText} numberOfLines={1}>{addressSelected}</Text>
+                    </TouchableOpacity>
                         
-                      <Text style={styles.label}>{t('stationcontact')}</Text>
-                      <TextInput
-                        style={[styles.input, { backgroundColor: '#fff', color: '#000' }]}
+                    <Text style={styles.inputLabel}>{t('stationcontact')}</Text>
+                    <TextInput
+                        style={styles.input}
                         value={contact}
                         onChangeText={setContact}
                         placeholder="09xxxxxxxxx"
-                        placeholderTextColor={"#888"}
-                      />
-        
-                      <Text style={styles.label}>Facebook URL</Text>
-                      <TextInput
+                        placeholderTextColor={"#9CA3AF"}
+                        keyboardType="phone-pad"
+                    />
+            
+                    <Text style={styles.inputLabel}>Facebook URL (Optional)</Text>
+                    <TextInput
                         style={styles.input}
                         value={facebook}
                         onChangeText={setFacebook}
-                        placeholder="https://facebook.com/..."
-                        placeholderTextColor={"#888"}
-                      />
-        
-                      <View style={{ flexDirection: "row", marginTop: 10 }}>
-                        <TouchableOpacity
-                          style={[styles.button, { flex: 1, marginRight: 5 }]}
-                          onPress={saveStation}
-                        >
-                          <Text style={styles.buttonText}>{t('savestation')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.button,
-                            { flex: 1, backgroundColor: "gray" },
-                          ]}
-                          onPress={() => setEditingStation(null)}
-                        >
-                          <Text style={styles.buttonText}>{t('cancel')}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.text}>{t('stationid')}{item.station_id}</Text>
-                      <Text style={styles.text}>{t('stationname')} {item.name}</Text>
-                      <Text style={styles.text}>{t('type')} {item.type}</Text>
-                      <Text style={styles.text}>{t('stationaddress')} {item.address}</Text>
-                      <Text style={styles.text}>{t('stationcontact')}{item.contact}</Text>
-                  
-                      <TouchableOpacity
-                        style={[styles.button, { marginTop: 8 }]}
-                        onPress={() => startEdit(item)}
-                      >
-                        <Text style={styles.buttonText}>{t('edit')}</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
+                        autoCapitalize="none"
+                        placeholder="https://facebook.com/yourpage"
+                        placeholderTextColor={"#9CA3AF"}
+                    />
+            
+                    <TouchableOpacity
+                        style={[styles.submitButton, submitting && styles.buttonDisabled]}
+                        onPress={handleSubmit}
+                        disabled={submitting}
+                    >
+                        {submitting ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.submitButtonText}>{t('savestation')}</Text>
+                        )}
+                    </TouchableOpacity>
+                    </View>
+                }
+                />
             )}
-            ListEmptyComponent={
-              <View style={{ alignItems: "center", marginTop: 50 }}>
-                <Text style={{ fontSize: 16, color: "gray" }}>
-                  {t('nostation')}
-                </Text>
-              </View>
-            }
-          />
-        </>
-      )}
-      
-      {/*Delete Screen*/}
-      {activeForm === "delete" && (
-        <>
-          <FlatList
-            data={stations}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={{ padding: 16 }}
-            keyboardShouldPersistTaps="handled"
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            renderItem={({ item }) => (
-                <View style={styles.card}>
-                  <Text style={styles.text}>{t('stationid')}: {item.station_id}</Text>
-                  <Text style={styles.text}>{t('stationname')} {item.name}</Text>
-                  <Text style={styles.text}>{t('stationtype')} {item.type}</Text>
-                  <Text style={styles.text}>{t('stationaddress')} {item.address}</Text>
-                  <Text style={styles.text}>{t('stationcontact')} {item.contact}</Text>
+            
+            {/* Edit Screen */}
+            {activeForm === "edit" && (
+                <FlatList
+                data={stations}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+                renderItem={({ item }) => (
+                    <View style={styles.stationCard}>
+                        {editingStation === item.id ? (
+                        <View>
+                            <Text style={styles.cardTitle}>{t('updatestation')}</Text>
+                            
+                            <Text style={styles.inputLabel}>{t('stationid')}</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={stationId}
+                                onChangeText={setStationId}
+                                placeholder={t('enterstationid')}
+                            />
+            
+                            <Text style={styles.inputLabel}>{t('stationname')}</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={name}
+                                onChangeText={setName}
+                                placeholder={t('enterstationname')}
+                            />
+            
+                            <Text style={styles.inputLabel}>{t('type')}</Text>
+                            <View style={styles.pickerContainer}>
+                                <Picker
+                                    selectedValue={type}
+                                    onValueChange={setType}
+                                    style={styles.picker}
+                                >
+                                    {STATION_TYPES.map((t) => (
+                                    <Picker.Item key={t} label={t} value={t} />
+                                    ))}
+                                </Picker>
+                            </View>
+                                
+                            <Text style={styles.inputLabel}>{t('location')}</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.locationButton}>
+                                <Text style={styles.locationButtonText} numberOfLines={1}>{addressSelected}</Text>
+                            </TouchableOpacity>
+                                
+                            <Text style={styles.inputLabel}>{t('stationcontact')}</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={contact}
+                                onChangeText={setContact}
+                                placeholder="09xxxxxxxxx"
+                            />
+            
+                            <Text style={styles.inputLabel}>Facebook URL</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={facebook}
+                                onChangeText={setFacebook}
+                                placeholder="https://facebook.com/..."
+                            />
+            
+                            <View style={styles.buttonRow}>
+                                <TouchableOpacity
+                                    style={[styles.actionButton, styles.cancelButton]}
+                                    onPress={() => setEditingStation(null)}
+                                >
+                                    <Text style={styles.actionButtonText}>{t('cancel')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.actionButton, styles.saveButton]}
+                                    onPress={saveStation}
+                                >
+                                    <Text style={styles.actionButtonText}>{t('savestation')}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        ) : (
+                        <View>
+                            <View style={styles.cardHeader}>
+                                <View style={styles.iconBox}>
+                                    <Icon name="office-building" size={24} color="#007BFF" />
+                                </View>
+                                <View style={{flex: 1, marginLeft: 10}}>
+                                    <Text style={styles.stationName}>{item.name}</Text>
+                                    <Text style={styles.stationType}>{item.type}</Text>
+                                </View>
+                            </View>
+                            
+                            <View style={styles.infoRow}>
+                                <Icon name="identifier" size={16} color="#6B7280" />
+                                <Text style={styles.infoText}>ID: {item.station_id}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Icon name="map-marker" size={16} color="#6B7280" />
+                                <Text style={styles.infoText} numberOfLines={1}>{item.address}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Icon name="phone" size={16} color="#6B7280" />
+                                <Text style={styles.infoText}>{item.contact || "N/A"}</Text>
+                            </View>
+                        
+                            <TouchableOpacity
+                                style={styles.editButton}
+                                onPress={() => startEdit(item)}
+                            >
+                                <Icon name="pencil" size={16} color="#fff" />
+                                <Text style={styles.editButtonText}>{t('edit')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                        )}
+                    </View>
+                )}
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Icon name="office-building-off" size={50} color="#ccc" />
+                        <Text style={styles.emptyText}>{t('nostation')}</Text>
+                    </View>
+                }
+                />
+            )}
+            
+            {/* Delete Screen */}
+            {activeForm === "delete" && (
+                <FlatList
+                data={stations}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+                renderItem={({ item }) => (
+                    <View style={styles.stationCard}>
+                        <View style={styles.cardHeader}>
+                            <View style={[styles.iconBox, {backgroundColor: '#FEE2E2'}]}>
+                                <Icon name="delete-alert" size={24} color="#EF4444" />
+                            </View>
+                            <View style={{flex: 1, marginLeft: 10}}>
+                                <Text style={styles.stationName}>{item.name}</Text>
+                                <Text style={styles.stationType}>{item.type}</Text>
+                            </View>
+                        </View>
 
-                  <TouchableOpacity
-                    style={[styles.button, { backgroundColor: "#e63946" }]}
-                    onPress={() =>
-                      Alert.alert(
-                        "Delete Station",
-                        `${t('confirmdel')} station ${item.name} ?`,
-                        [
-                          { text: t('cancel'), style: "cancel" },
-                          {
-                            text: t('delete'), 
-                            style: "destructive",
-                            onPress: () => deleteStation(item.id),
-                          },
-                        ]
-                      )
-                    }
-                  >
-                    <Text style={styles.buttonText}>{t('delete')}</Text>
-                  </TouchableOpacity>
-                </View>
-            )}
-            ListEmptyComponent={
-              <View style={{ alignItems: "center", marginTop: 50 }}>
-                <Text style={{ fontSize: 16, color: "gray" }}>
-                  {t('nostation')}
-                </Text>
-              </View>
-            }
-          />
-        </>
-      )}
-      
-      {/*location modal*/}
-      <Modal visible={modalVisible} animationType="slide">
-        <View style={{ flex: 1 }}>
-          {loadingLocation ? (
-            <ActivityIndicator size="large" style={{ flex: 1, justifyContent: "center" }} />
-          ) : (
-            <>
-              <View style={{ padding: 10, backgroundColor: "#fff", zIndex: 10 }}>
-                  <TextInput
-                    style={{
-                      borderWidth: 1,
-                      borderColor: "#ddd",
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      fontSize: 16,
-                      backgroundColor: "#fafafa",
-                    }}
-                    placeholder={t('searchloc')}
-                    placeholderTextColor={"#888"}
-                    value={searchText}
-                    onChangeText={handleSearch}
-                    />
-                  {searchResults.length > 0 && (
-                    <FlatList
-                    data={searchResults}
-                    keyExtractor={(item) => item.id}
-                    style={{ maxHeight: 150, marginTop: 5 }}
-                    keyboardShouldPersistTaps="handled"
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                          onPress={() => selectSearchResult(item)}
-                          style={{ paddingVertical: 8, paddingHorizontal: 5, borderBottomWidth: 1, borderColor: "#eee" }}
-                          >
-                          <Text>{item.place_name}</Text>
+                        <View style={styles.infoRow}>
+                            <Icon name="identifier" size={16} color="#6B7280" />
+                            <Text style={styles.infoText}>ID: {item.station_id}</Text>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Icon name="map-marker" size={16} color="#6B7280" />
+                            <Text style={styles.infoText} numberOfLines={1}>{item.address}</Text>
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.deleteButton}
+                            onPress={() =>
+                            Alert.alert(
+                                "Delete Station",
+                                `${t('confirmdel')} station ${item.name} ?`,
+                                [
+                                { text: t('cancel'), style: "cancel" },
+                                {
+                                    text: t('delete'), 
+                                    style: "destructive",
+                                    onPress: () => deleteStation(item.id),
+                                },
+                                ]
+                            )
+                            }
+                        >
+                            <Icon name="trash-can" size={16} color="#fff" />
+                            <Text style={styles.deleteButtonText}>{t('delete')}</Text>
                         </TouchableOpacity>
-                      )}
-                      />
-                  )}
-              </View>
-              <MapboxGL.MapView
-                  style={{ flex: 1 }}
-                  onPress={(e) => {
-                    const [lng, lat] = e.geometry.coordinates;
-                    setMarkerCoords({ latitude: lat, longitude: lng });
-                  }}
-                  >
-                  <MapboxGL.Camera
-                    zoomLevel={14}
-                    centerCoordinate={[markerCoords?.longitude || 0, markerCoords?.latitude || 0]}
-                    />
-                  {markerCoords && (
-                    <MapboxGL.PointAnnotation
-                    id="marker"
-                    coordinate={[markerCoords.longitude, markerCoords.latitude]}
-                    />
-                  )}
-              </MapboxGL.MapView>
-              <TouchableOpacity onPress={confirmLocation} style={styles.button}>
-                  <Text style={styles.buttonText}>{t('confirmloc')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                  onPress={() => setModalVisible(false)}
-                  style={[styles.button, { backgroundColor: "#aaa" }]}
-                  >
-                  <Text style={styles.buttonText}>{t('cancel')}</Text>
-              </TouchableOpacity>
-            </>
-          )}
+                    </View>
+                )}
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Icon name="office-building-off" size={50} color="#ccc" />
+                        <Text style={styles.emptyText}>{t('nostation')}</Text>
+                    </View>
+                }
+                />
+            )}
         </View>
-      </Modal>
-    </KeyboardAvoidingView>
+        
+        {/* Map Modal */}
+        <Modal visible={modalVisible} animationType="slide">
+            <View style={{ flex: 1 }}>
+            {loadingLocation ? (
+                <ActivityIndicator size="large" style={{ flex: 1, justifyContent: "center" }} />
+            ) : (
+                <>
+                <View style={styles.mapSearchContainer}>
+                    <View style={styles.searchBox}>
+                        <Icon name="magnify" size={20} color="#666" />
+                        <TextInput
+                            style={styles.mapSearchInput}
+                            placeholder={t('searchloc')}
+                            placeholderTextColor={"#888"}
+                            value={searchText}
+                            onChangeText={handleSearch}
+                        />
+                    </View>
+                    {searchResults.length > 0 && (
+                        <FlatList
+                        data={searchResults}
+                        keyExtractor={(item) => item.id}
+                        style={styles.searchResultsList}
+                        keyboardShouldPersistTaps="handled"
+                        renderItem={({ item }) => (
+                            <TouchableOpacity
+                                onPress={() => selectSearchResult(item)}
+                                style={styles.searchResultItem}
+                            >
+                                <Icon name="map-marker" size={16} color="#666" style={{marginRight: 8}} />
+                                <Text style={styles.searchResultText}>{item.place_name}</Text>
+                            </TouchableOpacity>
+                        )}
+                        />
+                    )}
+                </View>
+
+                <MapboxGL.MapView
+                    style={{ flex: 1 }}
+                    onPress={(e) => {
+                        const [lng, lat] = e.geometry.coordinates;
+                        setMarkerCoords({ latitude: lat, longitude: lng });
+                    }}
+                >
+                    <MapboxGL.Camera
+                        zoomLevel={14}
+                        centerCoordinate={[markerCoords?.longitude || 0, markerCoords?.latitude || 0]}
+                    />
+                    {markerCoords && (
+                        <MapboxGL.PointAnnotation
+                        id="marker"
+                        coordinate={[markerCoords.longitude, markerCoords.latitude]}
+                        />
+                    )}
+                </MapboxGL.MapView>
+
+                <View style={styles.mapFooter}>
+                    <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.mapButton, styles.mapCancelBtn]}>
+                        <Text style={styles.mapButtonText}>{t('cancel')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={confirmLocation} style={[styles.mapButton, styles.mapConfirmBtn]}>
+                        <Text style={[styles.mapButtonText, {color: '#fff'}]}>{t('confirmloc')}</Text>
+                    </TouchableOpacity>
+                </View>
+                </>
+            )}
+            </View>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 22, fontWeight: "700", marginBottom: 16, textAlign: "center" },
-  label: { fontSize: 13, marginTop: 12, marginBottom: 6 },
+  header: { padding: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#1F2937' },
+
+  // Tabs
+  tabContainer: {
+    flexDirection: "row",
+    margin: 16,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 10,
+  },
+  activeTabButton: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: { fontWeight: "600", color: '#6B7280' },
+  activeTabText: { color: '#007BFF' },
+
+  contentContainer: { flex: 1, paddingHorizontal: 16 },
+
+  // Form
+  formCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 20
+  },
+  cardTitle: { fontSize: 20, fontWeight: '700', marginBottom: 20, color: '#1F2937', textAlign: 'center' },
+  
+  inputLabel: { fontSize: 14, fontWeight: '600', color: '#4B5563', marginBottom: 6, marginTop: 12 },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#E5E7EB",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    backgroundColor: "#fafafa",
-    color: "#000",
+    paddingVertical: 12,
+    fontSize: 15,
+    backgroundColor: "#F9FAFB",
+    color: "#1F2937",
   },
-  readonly: { backgroundColor: "#f0f0f0", color: "#555" },
-  pickerWrap: {
+  pickerContainer: {
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#E5E7EB",
     borderRadius: 8,
-    backgroundColor: "#fafafa",
-    color: "#000",
+    backgroundColor: "#F9FAFB",
+    overflow: 'hidden'
   },
-  picker: { height: 50, width: "100%", color: "#000",backgroundColor: "#fafafa" },
-  button: {
-    backgroundColor: "#0a7",
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginTop: 5,
-    marginBottom: 10,
+  picker: { height: 50, width: "100%", color: "#1F2937" },
+  
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: "#007BFF",
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "#EFF6FF",
+  },
+  locationButtonText: { color: "#007BFF", fontWeight: '500', flex: 1 },
+
+  submitButton: {
+    backgroundColor: "#007BFF",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 24,
     alignItems: "center",
+    shadowColor: "#007BFF",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4
   },
   buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  map: { flex: 1, width: Dimensions.get("window").width, height: 400 },
-  switcher: {
-  flexDirection: "row",
-  justifyContent: "space-around",
-  marginBottom: 15,
-  marginTop: 20,
-},
-switchButton: {
-  backgroundColor: "#ddd",
-  paddingVertical: 12,
-  paddingHorizontal: 20,
-  borderRadius: 20,
-},
-activeSwitchButton: {
-  backgroundColor: "#007bff",
-},
+  submitButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
+  // Station List Cards
+  stationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  stationName: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  stationType: { fontSize: 12, color: '#6B7280' },
+  
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  infoText: { fontSize: 14, color: '#4B5563', marginLeft: 8 },
+
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F59E0B',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 6
+  },
+  editButtonText: { color: '#fff', fontWeight: '600' },
+  
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EF4444',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 6
+  },
+  deleteButtonText: { color: '#fff', fontWeight: '600' },
+
+  // Action Buttons Row
+  buttonRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  actionButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  actionButtonText: { fontWeight: '600' },
+  saveButton: { backgroundColor: '#10B981' },
+  cancelButton: { backgroundColor: '#E5E7EB' },
+
+  // Map Modal
+  mapSearchContainer: { position: 'absolute', top: 50, left: 16, right: 16, zIndex: 10 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 12, elevation: 4 },
+  mapSearchInput: { flex: 1, height: 46, fontSize: 16, marginLeft: 8 },
+  searchResultsList: { backgroundColor: '#fff', borderRadius: 8, marginTop: 6, elevation: 4 },
+  searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  searchResultText: { color: '#333' },
+  
+  mapFooter: { flexDirection: 'row', padding: 16, backgroundColor: '#fff', gap: 10 },
+  mapButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  mapCancelBtn: { backgroundColor: '#F3F4F6' },
+  mapConfirmBtn: { backgroundColor: '#007BFF' },
+  mapButtonText: { fontWeight: '600', color: '#374151' },
+
+  // Empty State
+  emptyContainer: { alignItems: 'center', marginTop: 60 },
+  emptyText: { color: '#9CA3AF', fontSize: 16, marginTop: 10 }
 });

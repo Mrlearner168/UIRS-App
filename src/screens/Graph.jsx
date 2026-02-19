@@ -1,7 +1,8 @@
 import { SERVER_URL } from '@env';
 import { useNavigation } from '@react-navigation/native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   RefreshControl,
@@ -19,6 +20,7 @@ import {
 } from 'react-native-chart-kit';
 import EncryptedStorage from 'react-native-encrypted-storage';
 import RNPickerSelect from 'react-native-picker-select';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -32,6 +34,7 @@ const Graph = () => {
   const [token, setToken] = useState(null);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedChart, setSelectedChart] = useState('bar');
   const [selectedFilter, setSelectedFilter] = useState('All');
 
@@ -53,70 +56,60 @@ const Graph = () => {
     fetchToken();
   }, [navigation]);
 
-  // Fetch statistics
-  const fetchStatistics = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    if (!token) return;
+    if (!refreshing) setIsLoading(true);
+
     try {
-      if (!token) return;
-      const response = await fetch(`${SERVER_URL}/incidents_statistics`, {
+      // Fetch Statistics
+      const statsResponse = await fetch(`${SERVER_URL}/incidents_statistics`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
-      const data = await response.json();
-
-      if (!Array.isArray(data)) {
-        setStatisticsData([]);
-        return;
+      
+      if (statsResponse.ok) {
+        const data = await statsResponse.json();
+        if (Array.isArray(data)) {
+          setStatisticsData(data);
+          setPendingIncidents(data.find(item => item.label === "pending")?.count || 0);
+          setDoneIncidents(data.find(item => item.label === "done")?.count || 0);
+          setAlertIncidents(data.find(item => item.label === "alert")?.count || 0);
+        }
       }
 
-      setStatisticsData(data);
-      setPendingIncidents(data.find(item => item.label === "pending")?.count || 0);
-      setDoneIncidents(data.find(item => item.label === "done")?.count || 0);
-      setAlertIncidents(data.find(item => item.label === "alert")?.count || 0);
-    } catch (error) {
-      console.log("Error fetching statistics data:", error);
-      setStatisticsData([]);
-    }
-  };
-  // Check login token
-  useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const storedToken = await EncryptedStorage.getItem("token");
-        if (!storedToken) navigation.navigate("Login");
-      } catch (error) {
-        Alert.alert("Error", "Failed to fetch authentication token.");
+      // Fetch Graph Data
+      // Note: Assuming this endpoint might also need auth, added header just in case. 
+      // If it fails without auth, remove the header object.
+      const graphResponse = await fetch(`${SERVER_URL}/incidents_graph`, {
+         headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (graphResponse.ok) {
+        const gData = await graphResponse.json();
+        setGraphData(gData);
       }
-    };
-    fetchToken();
-  }, []);
 
-
-  // Fetch graph
-  const fetchGraph = async () => {
-    try {
-      const response = await fetch(`${SERVER_URL}/incidents_graph`);
-      const data = await response.json();
-      setGraphData(data);
     } catch (error) {
-      console.log("Error fetching graph data:", error);
+      console.log("Error fetching dashboard data:", error);
+      Alert.alert("Error", "Failed to load dashboard data. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [token, refreshing]);
 
   useEffect(() => {
     if (token) {
-      fetchStatistics();
-      fetchGraph();
+      fetchDashboardData();
     }
   }, [token]);
 
-  const onRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    await fetchStatistics();
-    await fetchGraph();
-    setRefreshing(false);
+    fetchDashboardData();
   };
 
   // Filtered graph data
@@ -126,80 +119,103 @@ const Graph = () => {
 
   const counts = filteredData.map(item => item.count);
   const labels = filteredData.map(item => item.label);
-  const maxValue = Math.max(...counts, 1);
+  // Ensure we don't divide by zero if counts are empty
+  const maxValue = counts.length > 0 ? Math.max(...counts) : 10;
 
   const chartConfig = {
-    backgroundGradientFrom: "#fdfbfb",
-    backgroundGradientTo: "#ebedee",
+    backgroundGradientFrom: "#ffffff",
+    backgroundGradientTo: "#ffffff",
     decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(26, 188, 156, ${opacity})`,
-    labelColor: () => "#2c3e50",
+    color: (opacity = 1) => `rgba(0, 123, 255, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
     style: { borderRadius: 16 },
     propsForDots: {
-      r: "6",
+      r: "5",
       strokeWidth: "2",
-      stroke: "#3498db"
+      stroke: "#007BFF"
     },
-    barPercentage: 0.7
+    barPercentage: 0.7,
+    fillShadowGradient: '#007BFF',
+    fillShadowGradientOpacity: 0.3,
   };
 
   const renderChart = () => {
+    if (counts.length === 0) {
+        return (
+            <View style={styles.noDataContainer}>
+                <Icon name="insert-chart-outlined" size={50} color="#ccc" />
+                <Text style={styles.noDataText}>No data available for this filter.</Text>
+            </View>
+        );
+    }
+
+    const commonProps = {
+        width: screenWidth - 60, // consistent width with padding
+        height: 240,
+        chartConfig: chartConfig,
+        style: styles.chartStyle
+    };
+
     switch (selectedChart) {
       case 'bar':
         return (
           <BarChart
             data={{ labels, datasets: [{ data: counts }] }}
-            width={screenWidth * 0.95}
-            height={300}
             yAxisInterval={1}
             fromZero
             showValuesOnTopOfBars
-            segments={maxValue}
-            chartConfig={chartConfig}
-            style={styles.chart}
+            segments={4}
+            {...commonProps}
           />
         );
       case 'line':
         return (
           <LineChart
             data={{ labels, datasets: [{ data: counts }] }}
-            width={screenWidth * 0.95}
-            height={300}
-            chartConfig={chartConfig}
-            style={styles.chart}
+            bezier
+            {...commonProps}
           />
         );
       case 'pie':
         return (
           <PieChart
-            data={filteredData.map(item => ({
+            data={filteredData.map((item, index) => ({
               name: item.label,
               population: item.count,
-              color: `rgba(${Math.floor(Math.random() * 156 + 100)}, ${Math.floor(Math.random() * 156 + 100)}, ${Math.floor(Math.random() * 156 + 100)}, 1)`,
+              color: [
+                  '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
+              ][index % 6],
               legendFontColor: "#555",
-              legendFontSize: 14
+              legendFontSize: 12
             }))}
-            width={screenWidth * 0.95}
-            height={300}
+            width={screenWidth - 40}
+            height={220}
             chartConfig={chartConfig}
             accessor="population"
             backgroundColor="transparent"
-            paddingLeft="30"
-            style={styles.chart}
+            paddingLeft="15"
+            absolute
+            style={styles.chartStyle}
           />
         );
       case 'progress':
+        // Progress chart expects values between 0 and 1
+        const progressData = {
+            labels: labels.slice(0, 3), // Limit to top 3 to avoid clutter
+            data: counts.slice(0, 3).map(val => val / (Math.max(...counts) || 1))
+        };
         return (
           <ProgressChart
-            data={{ labels, data: counts.map(val => val / maxValue) }}
-            width={screenWidth * 0.95}
-            height={300}
-            chartConfig={chartConfig}
-            style={styles.chart}
+            data={progressData}
+            {...commonProps}
+            height={220}
+            strokeWidth={12}
+            radius={28}
+            hideLegend={false}
           />
         );
       default:
-        return <Text>No chart selected</Text>;
+        return null;
     }
   };
 
@@ -207,206 +223,235 @@ const Graph = () => {
     <ScrollView
       contentContainerStyle={styles.scrollContainer}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>Graph & statistics</Text>
-
-      {/* Stats Cards */}
-      <View style={styles.cardsContainer}>
-        <View style={[styles.card, { backgroundColor: "#f39c12" }]}>
-          <Text style={styles.cardLabel}>Pending</Text>
-          <Text style={styles.cardValue}>{pendingIncidents}</Text>
-        </View>
-        <View style={[styles.card, { backgroundColor: "#27ae60" }]}>
-          <Text style={styles.cardLabel}>Done</Text>
-          <Text style={styles.cardValue}>{doneIncidents}</Text>
-        </View>
-        <View style={[styles.card, { backgroundColor: "#e74c3c" }]}>
-          <Text style={styles.cardLabel}>Alert</Text>
-          <Text style={styles.cardValue}>{alertIncidents}</Text>
-        </View>
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>Dashboard & Analytics</Text>
       </View>
 
-      {/* Statistics List */}
-      <View style={styles.statisticsContainer}>
-        {statisticsData.map((item, index) => (
-          <View key={index} style={styles.statItem}>
-            <Text style={styles.label}>{item.label}</Text>
-            <Text style={styles.count}>{item.count}</Text>
+      {isLoading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007BFF" />
           </View>
-        ))}
-      </View>
+      ) : (
+          <>
+            {/* Stats Cards */}
+            <View style={styles.cardsContainer}>
+                <View style={[styles.card, styles.cardPending]}>
+                    <View style={styles.cardHeader}>
+                        <Icon name="hourglass-empty" size={24} color="#D97706" />
+                        <Text style={[styles.cardLabel, { color: '#D97706' }]}>Pending</Text>
+                    </View>
+                    <Text style={styles.cardValue}>{pendingIncidents}</Text>
+                </View>
 
-      {/* Graph Controls */}
-      <View style={styles.controls}>
-        <View style={styles.pickerContainer}>
-          <RNPickerSelect
-            value={selectedFilter}
-            onValueChange={value => setSelectedFilter(value)}
-            placeholder={{ label: "Filter by Type", value: "All" }}
-            placeholderTextColor="#2c3e50"
-            items={[
-              { label: "All", value: "All" },
-              ...graphData.map(item => ({ label: item.label, value: item.label }))
-            ]}
-            style={pickerSelectStyles}
-          />
-        </View>
+                <View style={[styles.card, styles.cardDone]}>
+                    <View style={styles.cardHeader}>
+                        <Icon name="check-circle" size={24} color="#059669" />
+                        <Text style={[styles.cardLabel, { color: '#059669' }]}>Done</Text>
+                    </View>
+                    <Text style={styles.cardValue}>{doneIncidents}</Text>
+                </View>
 
-        <View style={styles.buttonGroup}>
-          {['bar', 'line', 'pie', 'progress'].map(type => (
-            <TouchableOpacity
-              key={type}
-              onPress={() => setSelectedChart(type)}
-              style={[
-                styles.chartTypeButton,
-                selectedChart === type && styles.activeButton
-              ]}
-            >
-              <Text style={styles.buttonText}>{type.toUpperCase()}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+                <View style={[styles.card, styles.cardAlert]}>
+                    <View style={styles.cardHeader}>
+                        <Icon name="warning" size={24} color="#DC2626" />
+                        <Text style={[styles.cardLabel, { color: '#DC2626' }]}>Alerts</Text>
+                    </View>
+                    <Text style={styles.cardValue}>{alertIncidents}</Text>
+                </View>
+            </View>
 
-      {/* Graph */}
-      <View style={styles.chartCard}>
-        {filteredData.length > 0 ? renderChart() : <Text style={styles.noData}>No data available.</Text>}
-      </View>
+            {/* Main Content Area */}
+            <View style={styles.sectionContainer}>
+                <View style={styles.rowBetween}>
+                    <Text style={styles.sectionTitle}>Incident Trends</Text>
+                    
+                    {/* Filter Picker */}
+                    <View style={styles.pickerWrapper}>
+                        <RNPickerSelect
+                            value={selectedFilter}
+                            onValueChange={value => setSelectedFilter(value)}
+                            placeholder={{}} // Removes default placeholder
+                            items={[
+                                { label: "All Types", value: "All" },
+                                ...graphData.map(item => ({ label: item.label, value: item.label }))
+                            ]}
+                            style={pickerSelectStyles}
+                            useNativeAndroidPickerStyle={false}
+                            Icon={() => <Icon name="filter-list" size={20} color="#6B7280" style={{marginTop: 10, marginRight: 5}} />}
+                        />
+                    </View>
+                </View>
+
+                {/* Chart Type Selector */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chartTypeContainer}>
+                    {['bar', 'line', 'pie', 'progress'].map(type => (
+                        <TouchableOpacity
+                            key={type}
+                            onPress={() => setSelectedChart(type)}
+                            style={[
+                                styles.chartTypeButton,
+                                selectedChart === type && styles.activeChartButton
+                            ]}
+                        >
+                            <Icon 
+                                name={
+                                    type === 'bar' ? 'bar-chart' : 
+                                    type === 'line' ? 'show-chart' : 
+                                    type === 'pie' ? 'pie-chart' : 'donut-large'
+                                } 
+                                size={18} 
+                                color={selectedChart === type ? '#fff' : '#6B7280'} 
+                                style={{marginRight: 6}}
+                            />
+                            <Text style={[
+                                styles.chartTypeText,
+                                selectedChart === type && styles.activeChartText
+                            ]}>
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+
+                {/* Graph Card */}
+                <View style={styles.chartCard}>
+                    {renderChart()}
+                </View>
+            </View>
+
+            {/* Detailed Statistics List */}
+            <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Detailed Breakdown</Text>
+                <View style={styles.statsList}>
+                    {statisticsData.length > 0 ? statisticsData.map((item, index) => (
+                        <View key={index} style={styles.statRow}>
+                            <View style={styles.statLabelRow}>
+                                <View style={[styles.dot, { backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'][index % 4] }]} />
+                                <Text style={styles.statLabel}>{item.label}</Text>
+                            </View>
+                            <Text style={styles.statCount}>{item.count}</Text>
+                        </View>
+                    )) : (
+                        <Text style={styles.noDataText}>No detailed statistics available.</Text>
+                    )}
+                </View>
+            </View>
+          </>
+      )}
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    alignItems: "center",
-    backgroundColor: "#f7f9fa",
-    paddingBottom: 30,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginVertical: 20,
-  },
-  cardsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: screenWidth * 0.95,
-    marginBottom: 20,
-  },
+  scrollContainer: { flexGrow: 1, backgroundColor: "#F3F4F6", paddingBottom: 40 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100 },
+  
+  headerContainer: { padding: 22, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  title: { fontSize: 26, fontWeight: '700', color: '#1F2937' },
+
+  // Stats Cards
+  cardsContainer: { flexDirection: "row", justifyContent: "space-between", padding: 16, gap: 10 },
   card: {
     flex: 1,
-    marginHorizontal: 5,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: '#fff',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minHeight: 110,
+    justifyContent: 'space-between'
   },
-  cardLabel: {
-    fontSize: 16,
-    color: "#fff",
-    marginBottom: 8,
+  cardPending: { borderLeftWidth: 4, borderLeftColor: '#F59E0B' },
+  cardDone: { borderLeftWidth: 4, borderLeftColor: '#10B981' },
+  cardAlert: { borderLeftWidth: 4, borderLeftColor: '#EF4444' },
+  
+  cardHeader: { flexDirection: 'column', alignItems: 'flex-start', gap: 6 },
+  cardLabel: { fontSize: 13, fontWeight: "700", textTransform: 'uppercase', letterSpacing: 0.5 },
+  cardValue: { fontSize: 28, fontWeight: "800", color: "#1F2937" },
+
+  // Sections
+  sectionContainer: { marginTop: 10, paddingHorizontal: 16, marginBottom: 10 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#374151' },
+
+  // Picker
+  pickerWrapper: {
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#D1D5DB',
+      overflow: 'hidden',
+      minWidth: 140,
+      height: 40,
+      justifyContent: 'center'
   },
-  cardValue: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  statisticsContainer: {
-    width: screenWidth * 0.95,
-    backgroundColor: "#ffffff",
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 20,
-    shadowColor: "#aaa",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  statItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ecf0f1",
-  },
-  label: {
-    fontSize: 16,
-    color: "#2c3e50",
-  },
-  count: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1abc9c",
-  },
-  controls: {
-    width: screenWidth * 0.95,
-    marginBottom: 20,
-  },
-  pickerContainer: {
-    backgroundColor: "#ecf0f1",
-    borderRadius: 10,
-    padding: 5,
-    marginBottom: 10,
-  },
-  buttonGroup: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
+
+  // Chart Type Tabs
+  chartTypeContainer: { flexDirection: 'row', marginBottom: 16 },
   chartTypeButton: {
-    flex: 1,
-    marginHorizontal: 5,
-    backgroundColor: "#dfe6e9",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 20,
+      backgroundColor: '#E5E7EB',
+      marginRight: 8,
   },
-  activeButton: {
-    backgroundColor: "#1abc9c",
-  },
-  buttonText: {
-    color: "#2c3e50",
-    fontWeight: "600",
-  },
+  activeChartButton: { backgroundColor: '#007BFF' },
+  chartTypeText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
+  activeChartText: { color: '#fff' },
+
+  // Chart Area
   chartCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderRadius: 20,
     paddingVertical: 20,
-    paddingHorizontal: 10,
-    width: screenWidth * 0.95,
-    marginBottom: 20,
-    shadowColor: "#aaa",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    alignItems: 'center',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minHeight: 250,
+    justifyContent: 'center'
   },
-  chart: {
-    borderRadius: 16,
-  },
-  noData: {
-    color: "#7f8c8d",
-    textAlign: "center",
-    fontSize: 16,
-    paddingVertical: 40,
-  },
+  chartStyle: { borderRadius: 16 },
+  noDataContainer: { alignItems: 'center', justifyContent: 'center', padding: 20 },
+  noDataText: { color: "#9CA3AF", marginTop: 10, fontSize: 14 },
+
+  // Statistics List
+  statsList: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  statRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  statLabelRow: { flexDirection: 'row', alignItems: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
+  statLabel: { fontSize: 15, color: '#374151', fontWeight: '500' },
+  statCount: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
 });
 
-const pickerSelectStyles = {
+const pickerSelectStyles = StyleSheet.create({
   inputIOS: {
-    color: '#2c3e50',
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    color: '#374151',
+    paddingRight: 30, // to ensure the text is never behind the icon
   },
   inputAndroid: {
-    color: '#2c3e50',
-    paddingHorizontal: 10,
+    fontSize: 14,
     paddingVertical: 8,
-    fontSize: 16,
+    paddingHorizontal: 12,
+    color: '#374151',
+    paddingRight: 30, // to ensure the text is never behind the icon
   },
-};
+});
 
 export default Graph;

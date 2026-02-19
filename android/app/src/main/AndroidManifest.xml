@@ -21,6 +21,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.FLASHLIGHT" />
 
     <!-- Location & Network -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
@@ -33,6 +34,9 @@
     
     <!-- Services (Required for Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
 
     <application
@@ -60,8 +64,11 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
+            android:showOnLockScreen="true" 
+            android:turnScreenOn="true"
             android:theme="@style/Theme.App.SplashScreen"
             android:exported="true"
+            
             android:screenOrientation="portrait"
             tools:node="merge"> 
             
@@ -77,13 +84,49 @@
                 <data android:scheme="exp+uirs-v4"/>
             </intent-filter>
         </activity>
+        <activity 
+            android:name="com.rogerskie09.uirsv4.EmergencyAlertActivity"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.AppCompat.NoActionBar" 
+            android:exported="false" />
 
+        <service 
+            android:name="com.rogerskie09.uirsv4.EmergencyAlertService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="camera|mediaPlayback" />
         <!-- 
              Your Custom FCM Service 
              Using full package name to be 100% sure it's found.
         -->
         <service
+            android:name="com.rogerskie09.uirsv4.SocketService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+            
+        <receiver
+            android:name=".RestarterReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.rogerskie09.RESTART_SOCKET" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ✅ ADDED: Register the Stop Button Receiver here -->
+        <receiver 
+            android:name=".NotificationActionReceiver"
+            android:exported="false" />
+
+        <service
             android:name="com.rogerskie09.uirsv4.MyFirebaseMessagingService"
+            android:enabled="true"
             android:exported="false"
             android:directBootAware="true">
             <intent-filter>
@@ -98,17 +141,6 @@
         <service
             android:name="io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService"
             tools:node="remove" />
-
-        <!-- 
-             Dismiss Receiver
-             Commented out to prevent crashes if the file doesn't exist. 
-             Uncomment only if you created this file.
-        -->
-        <!-- 
-        <receiver
-            android:name=".EmergencyDismissReceiver"
-            android:exported="false" />
-        -->
 
         <!-- Notifee Service for standard notifications -->
         <service 

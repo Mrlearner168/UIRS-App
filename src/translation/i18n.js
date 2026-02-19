@@ -27,6 +27,9 @@ i18n.use(initReactI18next).init({
         validateaccount: 'Your account is being validated. Please wait a while before logging in.',
         shortpassword: 'Password must be at least 6 characters long.',
         incorrectcredentials: 'Incorrect email/phone or password. Please try again.',
+        mustacceptterms:'You must accept the terms and regulations to proceed.',
+        incidentdeleted:'This incident has been deleted ',
+        managestations:'Manage Stations',
         // modal
         invalidcode: 'Enter 6-digit code',
         cancel: 'Cancel',
@@ -62,6 +65,7 @@ i18n.use(initReactI18next).init({
         resalert:'Click the "Alert" to notify your Ongoing ',
         resdone:'If you are finish Click "Ongoing" to mark as Done',
         reslist:'View Responders List',
+        norequests:'No pending requests',
         //report incident 
         reportincident:'Report Incident',
         locationpermission:'Location permission is required.',
@@ -319,6 +323,8 @@ i18n.use(initReactI18next).init({
         subtyperequired:'Select Sub-type of ',
         subtyperequiredtittle:'Sub-type of ',
         allowlocation:'This app needs location access to send reports. Allow permission?',
+        cancel_verification: "Cancel Verification",
+        cancel_confirmation: "Are you sure you want to cancel the verification process?",
       },
     },
     fil: {
@@ -342,6 +348,9 @@ i18n.use(initReactI18next).init({
         validateaccount: 'Pinaproseso pa ang iyong account. Maghintay bago mag-login.',
         shortpassword: 'Ang password ay dapat may hindi bababa sa 6 na karakter.',
         incorrectcredentials: 'Maling email/telepono o password. Subukang muli.',
+        mustacceptterms:'Kailangan mong tanggapin ang mga patakaran upang magpatuloy.',
+        incidentdeleted:'Ang insidenteng ito ay nabura',
+        managestations:'Pamahalaan ang mga Istasyon',
         // modal
         invalidcode: 'Ilagay ang 6-digit na code',
         cancel: 'Kanselahin',
@@ -430,6 +439,12 @@ i18n.use(initReactI18next).init({
         logoutinfo:'Sigurado ka bang gusto mong mag-logout?',
         requiredID:'Mag-upload ng Kinakailangang Responder ID',
         selectstation:'Pumili ng Istasyon',
+        norequests:'Walang pending na mga request',
+        rolerequestpending:'Naka-pending ang iyong role request.',
+        confirmrolechange:'Na-accept na ang iyong role request. Gusto mo bang mag-request muli?',
+        declinerole:'Hindi ka makakapagsumite ng bagong role request. Impormasyon ay hindi valid.',
+        erroroccurred:'Nagkaroon ng error. Subukan muli mamaya.',
+
         //updates
         updates:'Mga Update',
         novalidatedinfo:'Walang na-validate na mga ulat.',
@@ -478,6 +493,7 @@ i18n.use(initReactI18next).init({
         edit:'I-edit ang Estasyon',
         addstation:'Magdagdag ng Estasyon',
         savestation:'I-save ang Estasyon',
+        managestations:'Pamahalaan ang mga Estasyon',
         //remarks
         remarksempty:'Hindi puwedeng walang laman ang remark.',
         remarksadded:'Nadagdag ang remark at na-validate ang insidente.',
@@ -639,6 +655,8 @@ i18n.use(initReactI18next).init({
         confirmrolechange: 'Ang iyong kahilingan para sa papel ay tinanggap na. Gusto mo bang magsumite muli?',
         declinerole: 'Hindi ka maaaring magsumite ng bagong kahilingan para sa papel. Hindi wastong impormasyon.',
         erroroccurred: 'Nagkaroon ng error. Pakisubukang muli mamaya.',
+        cancel_verification: "Kanselahin ang Pag-verify",
+        cancel_confirmation: "Sigurado ka bang gusto mong kanselahin ang proseso ng pag-verify?",
       },
     },
     hil: {
@@ -662,6 +680,8 @@ i18n.use(initReactI18next).init({
         validateaccount: 'Ginaproseso pa ang imo account. Maghulat anay antes mag-login.',
         shortpassword: 'Ang password dapat may indi magnubo sa 6 ka karakter.',
         incorrectcredentials: 'Mali ang email/telepono ukon password. Sulayi liwat.',
+        mustacceptterms:'Kinahanglan mo nga tanggapun ang mga patakaran agud magpadayon.',
+        incidentdeleted:'Ginbura na ini nga insidente',
         // modal
         invalidcode: 'Sulod sang 6-digit nga code',
         cancel: 'Kanselahon',
@@ -697,6 +717,11 @@ i18n.use(initReactI18next).init({
         resalert:'Pinduta ang "Alert" para pasabton ang imo ongoing nga insidente',
         resdone:'Kon tapos ka na, pinduta ang "Ongoing" para markahan nga Tapos',
         reslist:'Tan-awa ang Listahan sang mga Responder',
+        norequests:'Wala sang pending nga mga request',
+        rolerequestpending:'Naka-pending ang imo role request.',
+        confirmrolechange:'Na-accept na ang imo role request. Gusto mo bala mag-request liwat?',
+        declinerole:'Indi ka makasubmit sang bag-o nga role request. Indi valid ang impormasyon.',
+        erroroccurred:'May error nga natabo. Sulayi liwat sa ulihi.',
         //report incident 
         reportincident:'Ireport ang Insidente',
         locationpermission:'Kinahanglan ang permiso sa lokasyon.',
@@ -969,6 +994,8 @@ i18n.use(initReactI18next).init({
         confirmrolechange: 'Ang imo nga hangyo para sa papel na-accept na. Gusto mo bala magsubmit liwat?',
         declinerole: 'Indi ka makasubmit sang bag-o nga hangyo para sa papel. Indi insakto nga impormasyon.',
         erroroccurred: 'May nagluntad nga sala. Palihog sulayi liwat sa ulihi.',
+        cancel_verification: "Kanselahon ang Pag-verify",
+        cancel_confirmation: "Sigurado ka bala nga gusto mo kanselahon ang proseso sang pag-verify?",
       },
     },
   },

@@ -1,5 +1,6 @@
 package com.rogerskie09.uirsv4
 
+import com.rogerskie09.uirsv4.SharedPrefPackage
 import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
@@ -27,7 +28,7 @@ class MainApplication : Application(), ReactApplication {
             override fun getPackages(): List<ReactPackage> {
                 val packages = PackageList(this).packages.toMutableList()
                 // Add custom packages here
-                packages.add(OverlayPackage())
+                packages.add(SharedPrefPackage())
                 return packages
             }
             

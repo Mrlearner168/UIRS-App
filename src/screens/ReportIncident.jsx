@@ -128,90 +128,89 @@ const ReportIncident = () => {
     "conflagration": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
 
     // Accidents / Collisions / Injuries
-    "accident": ["Rescuer", "Ambulance"],
-    "aksidente": ["Rescuer", "Ambulance"],
-    "bangga": ["Rescuer", "Ambulance"],
-    "disgrasya": ["Rescuer", "Ambulance"],
-    "injury": ["Ambulance"],
-    "samad": ["Ambulance"],
-    "pilas": ["Ambulance"],
-    "wound": ["Ambulance"],
-    "crash": ["Rescuer", "Ambulance"],
-    "collision": ["Rescuer", "Ambulance"],
-    "bruise": ["Ambulance"],
-    "fracture": ["Ambulance"],
-    "bleeding": ["Ambulance"],
-    "cut": ["Ambulance"],
+    "accident":  ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "aksidente":["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "bangga":["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "disgrasya":["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "injury": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "samad": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "pilas": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "wound": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "crash": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "collision":["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "bruise": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "fracture": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "bleeding": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "cut": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
 
     // Medical / Health
-    "medical": ["Ambulance"],
-    "medikal": ["Ambulance"],
-    "sakit": ["Ambulance"],
-    "wala sang paminsaron": ["Ambulance"],
-    "hilanat": ["Ambulance"],
-    "kasingkasing": ["Ambulance"],
-    "dughan": ["Ambulance"],
-    "faint": ["Ambulance"],
-    "heart": ["Ambulance"],
-    "unconscious": ["Ambulance"],
-    "illness": ["Ambulance"],
-    "infection": ["Ambulance"],
-    "disease": ["Ambulance"],
-    "stroke": ["Ambulance"],
-    "fever": ["Ambulance"],
-    "pain": ["Ambulance"],
-    "asthma": ["Ambulance"],
-    "diabetes": ["Ambulance"],
-    "vomit": ["Ambulance"],
-    "pregnancy": ["Ambulance"],
-    "labor": ["Ambulance"],
+    "medical": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "medikal": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "sakit": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "wala sang paminsaron": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "hilanat":["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "dughan": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "faint": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "heart": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "unconscious": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "illness": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "infection": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "disease": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "stroke": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "fever": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "pain": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "asthma": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "diabetes": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "vomit": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "pregnancy": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "labor": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
 
     // Crime / Violence / Theft
-    "robbery": ["PNP"],
-    "kawat": ["PNP"],
-    "kawatan": ["PNP"],
-    "magnanakaw": ["PNP"],
-    "sudlan balay": ["PNP"],
-    "krimen": ["PNP"],
-    "kapintas": ["PNP"],
-    "theft": ["PNP"],
-    "crime": ["PNP"],
-    "violence": ["PNP"],
-    "assault": ["PNP"],
-    "burglary": ["PNP"],
-    "harrasment": ["PNP"],
-    "haras": ["PNP"],
-    "murder": ["PNP"],
-    "kidnap": ["PNP"],
-    "steal": ["PNP"],
-    "armed robbery": ["PNP"],
-    "pickpocket": ["PNP"],
-    "vandalism": ["PNP"],
-    "fight": ["PNP"],
-    "shooting": ["PNP"],
-    "threat": ["PNP"],
+    "robbery": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "kawat": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "kawatan": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "magnanakaw": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "sudlan balay": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "krimen": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "kapintas": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "theft": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "crime": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "violence": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "assault": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "burglary": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "harrasment": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "haras": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "murder": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "kidnap": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "steal": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "armed robbery": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "pickpocket": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "vandalism": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "fight": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "shooting": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "threat": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
 
     // Natural Disasters
-    "flood": ["Rescuer"],
-    "baha": ["Rescuer"],
-    "earthquake": ["Rescuer"],
-    "linog": ["Rescuer"],
-    "landslide": ["Rescuer"],
-    "lubak sang duta": ["Rescuer"],
-    "storm": ["Rescuer"],
-    "bagyo": ["Rescuer"],
-    "tsunami": ["Rescuer"],
-    "balud": ["Rescuer"],
-    "tornado": ["Rescuer"],
-    "typhoon": ["Rescuer"],
-    "hail": ["Rescuer"],
-    "flooding": ["Rescuer"],
-    "overflow": ["Rescuer"],
-    "eruption": ["Rescuer"],
-    "volcano": ["Rescuer"],
-    "mudslide": ["Rescuer"],
-    "rescue": ["Rescuer"],
-    "responder": ["Rescuer"],
+    "flood": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "baha": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "earthquake": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "linog": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "landslide": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "lubak sang duta": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "storm": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "bagyo": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "tsunami": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "balud": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "tornado": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "typhoon": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "hail": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "flooding": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "overflow": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "eruption": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "volcano": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "mudslide": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "rescue": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
+    "responder": ["BFP" , "Rescuer" , "Ambulance" , "PNP"],
   };
   
   useEffect(() => {
@@ -608,55 +607,82 @@ const ReportIncident = () => {
     let subscription;
 
     const watchLocation = async () => {
+      // 1. Check if last known location exists to show something IMMEDIATELY while watching starts
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      if (lastKnown && !selectedLocation) {
+         const { latitude, longitude } = lastKnown.coords;
+         const initialStr = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+         setLocation(initialStr); 
+         setSelectedLocation({ latitude, longitude });
+      }
+
+      // 2. Start Watching
       subscription = await Location.watchPositionAsync(
         { 
-          accuracy: Location.Accuracy.High, // More accurate for faster geocoding
-          distanceInterval: isOnline ? 10 : 50, // 10m online, 50m offline to reduce processing
-          timeInterval: isOnline ? 3000 : 10000 // 3s online, 10s offline
+          accuracy: Location.Accuracy.BestForNavigation, // 'Balanced' is faster than 'High' and usually sufficient for addresses
+          distanceInterval: 10, // Update every 10 meters
+          timeInterval: 5000 
         },
         async (loc) => {
           const lat = loc.coords.latitude;
           const lon = loc.coords.longitude;
           const newPoint = { latitude: lat, longitude: lon };
+          const coordString = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+
+          // STEP A: FAST UPDATE
+          // Update the UI with coordinates IMMEDIATELY. Do not wait for the address.
+          // Only update if we haven't manually locked a readable address yet (optional check)
           setSelectedLocation(newPoint);
-
-          // Check movement distance - faster threshold
-          const moved = lastLocation ? haversine(lastLocation, newPoint) : Infinity;
-          if (moved < 50 && lastReadable) {
-            // Small movement and we have cached address, skip geocoding
-            setLocation(lastReadable);
-            return;
-          }
-
           setLastLocation(newPoint);
+          
+          // Show coordinates right away so the input isn't empty
+          // We set a flag or check if the current text is just coordinates to avoid overwriting user edits
+          setLocation((prev) => {
+             // If the user hasn't typed a custom description, show the coords
+             // Or if the previous value was also just coords/empty
+             return coordString; 
+          });
 
-          // Debounce rapid geocoding requests
+          // STEP B: SLOW UPDATE (Background Geocoding)
+          // Debounce the API call to save data/battery
           if (locationUpdateTimeoutRef.current) {
             clearTimeout(locationUpdateTimeoutRef.current);
           }
 
           locationUpdateTimeoutRef.current = setTimeout(async () => {
-            if (!isOnline) {
-              // Offline - show coordinates immediately
-              setLocation(`${lat.toFixed(6)}, ${lon.toFixed(6)}`);
-              return;
+            if (!isOnline) return; // Keep the coordinates if offline
+
+            // Check cache first to avoid API call
+            const coordKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+            if (addressCache[coordKey]) {
+                setLocation(addressCache[coordKey]);
+                setLastReadable(addressCache[coordKey]);
+                return;
             }
 
-            // Online - try to get readable address, but use coords as fallback
+            // Fetch Address
             const readable = await convertToReadableLocation(lat, lon);
-            setLocation(readable);
-            setLastReadable(readable);
-
-            await EncryptedStorage.setItem(
-              "lastLocationData",
-              JSON.stringify({
-                latitude: lat,
-                longitude: lon,
-                readable: readable,
-                timestamp: Date.now(),
-              })
-            );
-          }, 500); // 500ms debounce for rapid location changes
+            
+            // Update UI with the nice address
+            if (readable && readable !== "Unnamed Road") {
+                setLocation(readable);
+                setLastReadable(readable);
+                
+                // Save to cache
+                setAddressCache(prev => ({ ...prev, [coordKey]: readable }));
+                
+                // Persist specific data
+                await EncryptedStorage.setItem(
+                  "lastLocationData",
+                  JSON.stringify({
+                    latitude: lat,
+                    longitude: lon,
+                    readable: readable,
+                    timestamp: Date.now(),
+                  })
+                );
+            }
+          }, 800); // Wait 800ms after movement stops before geocoding
         }
       );
     };
@@ -666,8 +692,7 @@ const ReportIncident = () => {
       if (subscription) subscription.remove();
       if (locationUpdateTimeoutRef.current) clearTimeout(locationUpdateTimeoutRef.current);
     };
-  }, [locationPermissionGranted, isOnline, lastLocation, lastReadable]);
-
+  }, [locationPermissionGranted, isOnline]);
 
   const requestLocationPermission = async () => {
     try {
@@ -713,59 +738,32 @@ const ReportIncident = () => {
 
   //console.log("Readable Location:", location);
   const convertToReadableLocation = async (latitude, longitude) => {
-    const coordKey = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
-    
-    // Check cache first
-    if (addressCache[coordKey]) {
-      console.log("Using cached address:", addressCache[coordKey]);
-      return addressCache[coordKey];
-    }
-
-    // Offline mode - return coords immediately
-    if (!isOnline) {
-      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-    }
-
-    const timeout = (ms) =>
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms));
-
     try {
-      // Reduce timeout to 2 seconds for faster fallback
-      const result = await Promise.race([
-        Location.reverseGeocodeAsync({ latitude, longitude }),
-        timeout(2000),
-      ]);
+        // Reduced timeout to 1.5s - if it takes longer, just show coords
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500));
+        
+        const result = await Promise.race([
+            Location.reverseGeocodeAsync({ latitude, longitude }),
+            timeout
+        ]);
 
-      if (!result || result.length === 0) return "Unnamed Road";
+        if (!result || result.length === 0) return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
-      const addr = result[0];
-      const formatted = [
-        addr.name && addr.name.toLowerCase() !== "unnamed road" ? addr.name : null,
-        addr.street,
-        addr.city || addr.town || addr.village,
-        addr.region,
-        addr.country,
-      ]
-        .filter(Boolean)
-        .join(", ");
+        const addr = result[0];
+        
+        // Construct address - simplified for speed
+        let parts = [];
+        if (addr.street) parts.push(addr.street);
+        if (addr.name && addr.name !== addr.street && addr.name !== "Unnamed Road") parts.push(addr.name);
+        if (addr.district || addr.city) parts.push(addr.district || addr.city);
+        if (addr.region) parts.push(addr.region);
 
-      const readable = formatted.trim() || "Unnamed Road";
-      
-      // Cache the result
-      setAddressCache(prev => ({
-        ...prev,
-        [coordKey]: readable
-      }));
-      
-      return readable;
-    } catch {
-      const coordFormat = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-      // Cache coordinate format too
-      setAddressCache(prev => ({
-        ...prev,
-        [coordKey]: coordFormat
-      }));
-      return coordFormat;
+        const readable = parts.length > 0 ? parts.join(", ") : `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        return readable;
+
+    } catch (error) {
+        // On error or timeout, silently return coordinates
+        return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     }
   };
 
@@ -894,16 +892,6 @@ const ReportIncident = () => {
     } catch (err) {
       console.log("Failed to open SMS app:", err);
       Alert.alert('Error', t('smserror'));
-    }
-  };
-
-  // Manual retry
-  const retryLastReport = () => {
-    console.log("retryLastReport called. Last report:", lastReport);
-    if (lastReport) {
-      sendSMSReport(lastReport);
-    } else {
-      Alert.alert(t('noreport'));
     }
   };
 
@@ -1216,70 +1204,60 @@ const ReportIncident = () => {
   };
   const removeMedia = (index) => setMedia(prev => prev.filter((_, i) => i !== index));
   
-  // Delete media from a submitted report via API
-  const deleteMediaFromReport = async (reportId, mediaPath) => {
-    try {
-      const response = await axios.delete(
-        `${SERVER_URL}/delete_media/${reportId}`,
-        {
-          data: { media_path: mediaPath },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000,
-        }
-      );
-
-      console.log('Media deleted successfully:', response.data);
-      Alert.alert('Success', 'Media file deleted successfully');
-      return true;
-    } catch (err) {
-      console.error('Error deleting media:', err.response?.data || err.message);
-      const errorMsg = err.response?.data?.message || 'Failed to delete media file';
-      Alert.alert('Error', errorMsg);
-      return false;
-    }
-  };
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    
+
+    // 1. Reset Form Fields Immediately (Makes the UI feel responsive)
+    setIncidentType('');
+    setIncidentDescription('');
+    setMedia([]);
+    setSubType('');
+    setIsConscious(null);
+    setPatientName('');
+    setPatientAge('');
+    setPatientGender('');
+
+    // 2. Handle Location Speed Optimization
     if (selectedLocation) {
+      // STEP A: Show Coordinates IMMEDIATELY (Don't wait for API)
+      const coordString = `${selectedLocation.latitude.toFixed(6)}, ${selectedLocation.longitude.toFixed(6)}`;
+      setLocation(coordString);
+
+      // STEP B: Fetch Readable Address (If online)
       if (isOnline) {
-        const readable = await convertToReadableLocation(
-          selectedLocation.latitude,
-          selectedLocation.longitude
-        );
-        setLocation(readable);
-        setLastReadable(readable);
-        await EncryptedStorage.setItem(
-          "lastLocationData",
-          JSON.stringify({
-            latitude: selectedLocation.latitude,
-            longitude: selectedLocation.longitude,
-            readable,
-            timestamp: Date.now(),
-          })
-        );
-      } else {
-        // Offline - use cached or coordinates
-        setLocation(lastReadable || `${selectedLocation.latitude.toFixed(6)}, ${selectedLocation.longitude.toFixed(6)}`);
+        try {
+          // We await this so the spinner stays until address is ready, 
+          // but the user already sees the coordinates from Step A.
+          const readable = await convertToReadableLocation(
+            selectedLocation.latitude,
+            selectedLocation.longitude
+          );
+          
+          // Update UI with the readable address
+          setLocation(readable);
+          setLastReadable(readable);
+
+          // Save to storage in background (Fire and forget, don't await)
+          EncryptedStorage.setItem(
+            "lastLocationData",
+            JSON.stringify({
+              latitude: selectedLocation.latitude,
+              longitude: selectedLocation.longitude,
+              readable,
+              timestamp: Date.now(),
+            })
+          ).catch(err => console.log("Storage save error:", err));
+
+        } catch (error) {
+          console.log("Refresh geocode failed, keeping coordinates visible");
+        }
       }
     }
-  
-    setNearestStations(fetchStationsByType());
+
+    // 3. Process background tasks
+    setNearestStations(fetchStationsByType()); // This might return empty since we cleared incidentType, which is expected on refresh
     processOfflineQueue();
-  
-    setIncidentType(''); 
-    setIncidentDescription(''); 
-    setMedia([]);
-    setSubType(''); 
-    setIsConscious(null); 
-    setPatientName(''); 
-    setPatientAge(''); 
-    setPatientGender('');
-  
+
     setRefreshing(false);
   }, [selectedLocation, isOnline, fetchStationsByType]);
   

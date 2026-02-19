@@ -1,12 +1,13 @@
 package com.rogerskie09.uirsv4
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
-import com.facebook.react.ReactApplication // Correct import
+import com.facebook.react.ReactApplication
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -19,21 +20,35 @@ class MainActivity : ReactActivity() {
         // 1. Set Theme (Must be before super.onCreate)
         setTheme(R.style.AppTheme)
         
-        // 2. Call Super
         super.onCreate(savedInstanceState)
+
+        // 2. START THE SOCKET SERVICE
+        // This ensures that as soon as the user opens the app, the background 
+        // socket connection starts listening for alerts.
+        startSocketService()
         
-        // 3. CHECK FOR EMERGENCY SIGNAL
-        // We check if the intent has the specific "type" = "EMERGENCY"
-        // OR if it has a "body" (which usually comes from the notification)
-        val isEmergency = intent?.extras?.getString("type")?.equals("emergency", ignoreCase = true) == true || 
-                          intent?.extras?.containsKey("body") == true 
-        
-        // 4. ONLY ENABLE LOCK SCREEN BYPASS IF IT IS AN EMERGENCY
+        // 3. LOCK SCREEN BYPASS LOGIC
+        // If the app is opened via an emergency intent, allow it to show over the lockscreen
+        handleLockScreenVisibility(intent)
+    }
+
+    private fun startSocketService() {
+        val serviceIntent = Intent(this, SocketService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+    }
+
+    private fun handleLockScreenVisibility(intent: Intent?) {
+        val isEmergency = intent?.extras?.getString("type")?.contains("emergency", ignoreCase = true) == true || 
+                          intent?.extras?.containsKey("incident_id") == true
+
         if (isEmergency) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 setShowWhenLocked(true)
                 setTurnScreenOn(true)
-                // Optional: Keyguard dismissal for newer Androids
                 val keyguardManager = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
                 keyguardManager.requestDismissKeyguard(this, null)
             } else {
@@ -50,25 +65,17 @@ class MainActivity : ReactActivity() {
     
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // 5. Handle notification when app is already running (Warm Start)
         setIntent(intent)
+        handleLockScreenVisibility(intent) // Re-check if new intent is an emergency
         handleNotificationIntent(intent)
     }
     
     private fun handleNotificationIntent(intent: Intent?) {
         if (intent == null) return
-        
-        // Safety Check: Ensure extras exist before trying to read them
         val bundle = intent.extras ?: return
-
-        // We can just forward everything, or check for specific keys
-        val navigateTo = bundle.getString("navigate_to")
-        // If you want to force emit even without "navigate_to", remove the check below
-        // if (navigateTo == null) return 
 
         val params = Arguments.createMap()
         
-        // Copy all bundle data to React Native map
         for (key in bundle.keySet()) {
             val value = bundle.get(key)
             when (value) {
@@ -76,22 +83,18 @@ class MainActivity : ReactActivity() {
                 is Boolean -> params.putBoolean(key, value)
                 is Double -> params.putDouble(key, value)
                 is Int -> params.putInt(key, value)
-                // Add Long support if needed (often used for timestamps)
                 is Long -> params.putDouble(key, value.toDouble()) 
             }
         }
 
-        // FIX: Correctly access reactNativeHost via the Application class
         try {
             val reactApp = application as ReactApplication
             val reactContext = reactApp.reactNativeHost.reactInstanceManager.currentReactContext
             
             if (reactContext != null) {
+                // This sends the "onEmergencyNotification" event to your React Native useEffect listeners
                 reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     .emit("onEmergencyNotification", params)
-            } else {
-                // If context is null, the app might be initializing. 
-                // The 'getLaunchOptions' will handle the data in that case.
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -109,8 +112,7 @@ class MainActivity : ReactActivity() {
                 mainComponentName,
                 fabricEnabled
             ){
-                // 6. THIS IS THE FIX FOR COLD STARTS
-                // We pass the intent extras directly as "props" to the Root Component (App.js)
+                // This passes initial data as Props to App.js (for Cold Starts)
                 override fun getLaunchOptions(): Bundle? {
                     val initialProps = Bundle()
                     intent?.extras?.let {

@@ -41,7 +41,6 @@ const ProfileScreen = ({ navigation }) => {
   const [avatar, setAvatar] = useState('');
   const [avatarChanged, setAvatarChanged] = useState(false);
 
-
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -75,7 +74,32 @@ const ProfileScreen = ({ navigation }) => {
 
   const { t, i18n } = useTranslation();
   const { logout } = useContext(AuthContext);
-  console.log(avatar);
+  
+  // --- PASSWORD STRENGTH LOGIC ---
+  const getPasswordAnalysis = (pass) => {
+    return {
+      length: pass.length >= 8,
+      upper: /[A-Z]/.test(pass),
+      lower: /[a-z]/.test(pass),
+      number: /\d/.test(pass),
+      special: /[@$!%*?&]/.test(pass),
+    };
+  };
+
+  const passwordAnalysis = getPasswordAnalysis(newPassword);
+  const passwordScore = Object.values(passwordAnalysis).filter(Boolean).length;
+
+  const getStrengthColor = () => {
+    if (passwordScore <= 2) return '#ff4444'; // Red
+    if (passwordScore <= 4) return '#ffbb33'; // Orange
+    return '#00C851'; // Green
+  };
+
+  const getStrengthLabel = () => {
+    if (passwordScore <= 2) return t('weak') || 'Weak';
+    if (passwordScore <= 4) return t('medium') || 'Medium';
+    return t('strong') || 'Strong';
+  };
 
   // Check if the user is online or offline
   useEffect(() => {
@@ -91,7 +115,7 @@ const ProfileScreen = ({ navigation }) => {
     syncLanguage();
   }, []);
 
-  //check for token
+  // Check for token
   useEffect(() => {
     const fetchToken = async () => {
       try {
@@ -102,13 +126,13 @@ const ProfileScreen = ({ navigation }) => {
           navigation.navigate("Login");
         }
       } catch (error) {
-        //console.log('Error fetching token:', error);
+        console.error('Error fetching token:', error);
       }
     };
     fetchToken();
   }, []);
 
-  // fetch users data using offline and online methods
+  // Fetch user data using offline and online methods
   const fetchUserData = async () => {
     try {
       const cached = await EncryptedStorage.getItem("cached_profile");
@@ -118,7 +142,6 @@ const ProfileScreen = ({ navigation }) => {
       if (!isOnline && cached) {
         // Load cached profile when offline
         const user = JSON.parse(cached);
-        //console.log("Offline: Loading profile from cache", user);
         setUserId(user.id || '');
         setFirstName(user.firstName || '');
         setLastName(user.lastName || '');
@@ -128,7 +151,6 @@ const ProfileScreen = ({ navigation }) => {
         setAvatar(user.avatar ? `${SERVER_URL}/avatar/${user.avatar}` : '');
         setRole(user.role || 'user');
         setRoleStatus(user.role_status || '');
-        // Fix: set verified values
         setVerifiedEmail(user.email || '');
         setVerifiedPhone(user.phone || '');
         return;
@@ -140,7 +162,6 @@ const ProfileScreen = ({ navigation }) => {
       });
 
       const user = response.data;
-      //console.log("Online: Loaded profile from server", user);
       setUserId(user.id || '');
       setFirstName(user.firstName || '');
       setLastName(user.lastName || '');
@@ -150,13 +171,16 @@ const ProfileScreen = ({ navigation }) => {
       setAvatar(user.avatar ? `${SERVER_URL}/avatar/${user.avatar}` : '');
       setRole(user.role || 'user');
       setRoleStatus(user.role_status || '');
-      // Fix: set verified values
       setVerifiedEmail(user.email || '');
       setVerifiedPhone(user.phone || '');
 
       await EncryptedStorage.setItem("cached_profile", JSON.stringify(user));
     } catch (error) {
       console.log("fetchUserData error:", error);
+      if (isOnline) {
+         // Only alert if we expected to be online and failed
+         // console.log("Failed to fetch user data");
+      }
     }
   };
 
@@ -189,7 +213,7 @@ const ProfileScreen = ({ navigation }) => {
         });
         setStations(response.data);
       } catch (error) {
-        //console.log('Error fetching stations')
+        console.log('Error fetching stations', error);
       } finally {
         setLoadingStations(false);
       }
@@ -213,17 +237,21 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      });
 
-    if (!result.canceled) {
-      const compressedUri = await compressImage(result.assets[0].uri);
-      setAvatar(compressedUri);
-      setAvatarChanged(true);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const compressedUri = await compressImage(result.assets[0].uri);
+        setAvatar(compressedUri);
+        setAvatarChanged(true);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to pick image");
     }
   };
 
@@ -234,14 +262,12 @@ const ProfileScreen = ({ navigation }) => {
       setLoading(true);
       const formData = new FormData();
 
-      // Include all required fields
       formData.append('firstName', firstName);
       formData.append('lastName', lastName);
       formData.append('email', email);
       formData.append('phone', phone);
       if (age) formData.append('age', age);
 
-      // Include avatar
       const uriParts = avatar.split('.');
       const fileType = uriParts[uriParts.length - 1];
       formData.append('avatar', {
@@ -261,8 +287,8 @@ const ProfileScreen = ({ navigation }) => {
       setAvatarChanged(false);
 
     } catch (error) {
-      //console.log(error.response?.data || error.message);
-      Alert.alert("Error", "Please Select an Image.");
+      const msg = error.response?.data?.message || "Please Select an Image or check connectivity.";
+      Alert.alert("Error", msg);
     } finally {
       setLoading(false);
     }
@@ -276,28 +302,36 @@ const ProfileScreen = ({ navigation }) => {
         {
           text: "Camera",
           onPress: async () => {
-            const result = await ImagePicker.launchCameraAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: true,
-              quality: 1,
-            });
-            if (!result.canceled) {
-              const compressedUri = await compressImage(result.assets[0].uri);
-              setter(compressedUri);
+            try {
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                quality: 1,
+              });
+              if (!result.canceled && result.assets && result.assets.length > 0) {
+                const compressedUri = await compressImage(result.assets[0].uri);
+                setter(compressedUri);
+              }
+            } catch (e) {
+              Alert.alert("Error", "Camera unavailable");
             }
           },
         },
         {
           text: "Gallery",
           onPress: async () => {
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: true,
-              quality: 1,
-            });
-            if (!result.canceled) {
-              const compressedUri = await compressImage(result.assets[0].uri);
-              setter(compressedUri);
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                quality: 1,
+              });
+              if (!result.canceled && result.assets && result.assets.length > 0) {
+                const compressedUri = await compressImage(result.assets[0].uri);
+                setter(compressedUri);
+              }
+            } catch (e) {
+              Alert.alert("Error", "Gallery unavailable");
             }
           },
         },
@@ -308,10 +342,7 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const sendOtp = async () => {
-    if (!updateTarget) {
-      // console.log("sendOtp called but updateTarget is null");
-      return;
-    }
+    if (!updateTarget) return;
 
     try {
       const token = await EncryptedStorage.getItem('token');
@@ -371,10 +402,12 @@ const ProfileScreen = ({ navigation }) => {
       setLoading(true);
       const formData = new FormData();
       formData.append("stationId", stationId);
-      formData.append("roleType", roleType); // NEW FIELD
+      formData.append("roleType", roleType);
+      
       const compressedFront = await compressImage(idCardFront);
       const compressedBack = await compressImage(idCardBack);
       const compressedSelfie = await compressImage(selfieWithId);
+      
       formData.append("idCardFront", { uri: compressedFront, name: "idFront.webp", type: "image/webp" });
       formData.append("idCardBack", { uri: compressedBack, name: "idBack.webp", type: "image/webp" });
       formData.append("selfieWithId", { uri: compressedSelfie, name: "selfie.webp", type: "image/webp" });
@@ -395,10 +428,10 @@ const ProfileScreen = ({ navigation }) => {
       setIdCardFront(null);
       setIdCardBack(null);
       setSelfieWithId(null);
-      setRoleType("responder_personnel"); // reset role type
+      setRoleType("responder_personnel");
     } catch (error) {
       console.log(error.response?.data || error.message);
-      Alert.alert("Error", "Failed to submit role request.");
+      Alert.alert("Error", error.response?.data?.message || "Failed to submit role request.");
     } finally {
       setLoading(false);
     }
@@ -409,10 +442,25 @@ const ProfileScreen = ({ navigation }) => {
       Alert.alert("Error", t('notmatch'));
       return;
     }
-    setShowPasswordModal(true); // Show modal to enter current password
+    // Validation: Ensure password is strong enough before attempting save
+    if (passwordScore < 5) { // Assuming 5 is max score where all criteria met
+       // You can decide if you want to block 'weak' or just warn. 
+       // Here we block if it misses requirements for robustness.
+       const analysis = getPasswordAnalysis(newPassword);
+       if (!analysis.length || !analysis.upper || !analysis.lower || !analysis.number || !analysis.special) {
+           Alert.alert("Weak Password", "Please ensure your password meets all requirements listed below the input.");
+           return;
+       }
+    }
+
+    setShowPasswordModal(true);
   };
+
   const confirmPasswordChange = async () => {
-    if (!currentPasswordInput) return;
+    if (!currentPasswordInput) {
+        Alert.alert("Error", "Current password is required");
+        return;
+    }
 
     try {
       const response = await axios.post(`${SERVER_URL}/update_password`, {
@@ -429,10 +477,11 @@ const ProfileScreen = ({ navigation }) => {
       setCurrentPasswordInput('');
       setShowPasswordModal(false);
     } catch (error) {
-      //console.log(error.response?.data || error.message);
-      Alert.alert("Error", error.response?.data?.message || "Update failed.");
+      const msg = error.response?.data?.message || "Update failed. Please check your current password.";
+      Alert.alert("Error", msg);
     }
   };
+
   const handleLogout = () => {
     setLogoutModalVisible(false);
     logout();
@@ -474,8 +523,9 @@ const ProfileScreen = ({ navigation }) => {
         return;
       }
 
-      if (roleStatus === 'declined' || !status) {
-        Alert.alert("Info", t('declinedrole'));
+      if (roleStatus === 'declined' || !roleStatus) {
+        // If previously declined, allow re-application
+        setRoleRequestModalVisible(true);
         return;
       }
 
@@ -484,14 +534,17 @@ const ProfileScreen = ({ navigation }) => {
       Alert.alert("Error", t('erroroccurred'));
     }
   };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchUserData();
-    await fetchStations(); // ensure you await this if it's async
+    await fetchStations();
     setNewPassword('');
     setConfirmPassword('');
-    setCurrentPasswordInput(''); // add this
+    setCurrentPasswordInput('');
+    setRefreshing(false); // Make sure to stop refreshing
   };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAwareScrollView
@@ -500,6 +553,7 @@ const ProfileScreen = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {loading && <ActivityIndicator size="large" color="#007bff" style={{ marginBottom: 10 }} />}
+        
         <View style={styles.languageContainer}>
           <View style={styles.languageRow}>
             <Ionicons name="globe-outline" size={20} color="black" style={{ marginRight: 5 }} />
@@ -516,9 +570,9 @@ const ProfileScreen = ({ navigation }) => {
               <Picker.Item label="Filipino" value="fil" />
               <Picker.Item label="Hiligaynon" value="hil" />
             </Picker>
-
           </View>
         </View>
+
         <View style={styles.profileContainer}>
           <TouchableOpacity
             onPress={() => {
@@ -550,11 +604,10 @@ const ProfileScreen = ({ navigation }) => {
               name={isOnline ? 'wifi' : 'wifi-off'}
               size={20}
               color={isOnline ? 'green' : 'red'}
-              style={{ marginLeft: 1 }}
+              style={{ marginLeft: 5 }}
             />
           </Text>
         </View>
-
 
         <View style={styles.formContainer}>
           <Text style={styles.label}>{t('firstname')}</Text>
@@ -571,9 +624,7 @@ const ProfileScreen = ({ navigation }) => {
             <TextInput
               style={[styles.input, { flex: 1 }]}
               value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-              }}
+              onChangeText={(text) => setEmail(text)}
             />
             {email !== '' && email !== verifiedEmail && (
               <TouchableOpacity
@@ -602,7 +653,7 @@ const ProfileScreen = ({ navigation }) => {
                 if (isOnline) {
                   setPhone(text);
                 } else {
-                  Alert.alert(t('offline'), t('cantchangeoffline '));
+                  Alert.alert(t('offline'), t('cantchangeoffline'));
                 }
               }}
             />
@@ -616,13 +667,13 @@ const ProfileScreen = ({ navigation }) => {
               >
                 <Text style={styles.verifyBtnText}>{t('savechanges')}</Text>
               </TouchableOpacity>
-
             )}
           </View>
 
           {/* PASSWORD SECTION */}
-          <Text style={{ fontSize: 14, marginBottom: 8, textAlign: 'center', color: '#000' }}>
-            ( {t('changepassword')} )
+          <View style={styles.divider} />
+          <Text style={styles.sectionHeader}>
+            {t('changepassword')}
           </Text>
 
           <Text style={[styles.label, { color: '#000' }]}>{t('newpassword')}</Text>
@@ -641,7 +692,6 @@ const ProfileScreen = ({ navigation }) => {
               }}
               secureTextEntry={!passwordVisible}
             />
-
             <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
               <Ionicons
                 name={passwordVisible ? "eye-off" : "eye"}
@@ -652,7 +702,26 @@ const ProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {newPassword && (
+          {/* PASSWORD STRENGTH INDICATOR */}
+          {newPassword.length > 0 && (
+            <View style={styles.passwordStrengthContainer}>
+                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 5}}>
+                    <View style={styles.strengthBarBackground}>
+                        <View style={[styles.strengthBarFill, { backgroundColor: getStrengthColor(), width: `${(passwordScore / 5) * 100}%` }]} />
+                    </View>
+                    <Text style={[styles.strengthText, { color: getStrengthColor() }]}>{getStrengthLabel()}</Text>
+                </View>
+                <View style={styles.criteriaContainer}>
+                    <Text style={[styles.criteriaText, passwordAnalysis.length ? styles.metCriteria : styles.unmetCriteria]}>• At least 8 characters</Text>
+                    <Text style={[styles.criteriaText, passwordAnalysis.upper ? styles.metCriteria : styles.unmetCriteria]}>• Uppercase letter</Text>
+                    <Text style={[styles.criteriaText, passwordAnalysis.lower ? styles.metCriteria : styles.unmetCriteria]}>• Lowercase letter</Text>
+                    <Text style={[styles.criteriaText, passwordAnalysis.number ? styles.metCriteria : styles.unmetCriteria]}>• Number</Text>
+                    <Text style={[styles.criteriaText, passwordAnalysis.special ? styles.metCriteria : styles.unmetCriteria]}>• Special character (@$!%*?&)</Text>
+                </View>
+            </View>
+          )}
+
+          {newPassword !== '' && (
             <>
               <Text style={[styles.label, { color: '#000' }]}>{t('confirmpassword')}</Text>
               <View style={[styles.passwordContainer, { backgroundColor: '#fff' }]}>
@@ -670,7 +739,6 @@ const ProfileScreen = ({ navigation }) => {
                   }}
                   secureTextEntry={!passwordVisible}
                 />
-
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
                   <Ionicons
                     name={passwordVisible ? "eye-off" : "eye"}
@@ -681,7 +749,7 @@ const ProfileScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {confirmPassword && (
+              {confirmPassword !== '' && (
                 <TouchableOpacity style={styles.saveButton} onPress={handleSavePassword}>
                   <Text style={styles.saveButtonText}>{t('savepassword')}</Text>
                 </TouchableOpacity>
@@ -702,30 +770,29 @@ const ProfileScreen = ({ navigation }) => {
         </View>
 
         {/* MODALS */}
-        {/* Password confirm change modal */}
         <Modal visible={showPasswordModal} transparent animationType="slide">
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
-              <Text>{t('currentpass')}</Text>
+              <Text style={styles.modalTitle}>{t('currentpass')}</Text>
               <TextInput
                 value={currentPasswordInput}
                 onChangeText={setCurrentPasswordInput}
                 secureTextEntry
-                style={styles.input}
+                style={[styles.input, { width: '100%', marginTop: 10 }]}
+                placeholder={t('currentpass')}
               />
-              <View style={{ flexDirection: 'row', marginTop: 15 }}>
+              <View style={{ flexDirection: 'row', marginTop: 15, justifyContent: 'space-between', width: '100%' }}>
                 <TouchableOpacity onPress={() => setShowPasswordModal(false)} style={styles.cancelButton}>
-                  <Text>{t('cancel')}</Text>
+                  <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={confirmPasswordChange} style={styles.confirmButton}>
-                  <Text>{t('confirm')}</Text>
+                  <Text style={styles.confirmButtonText}>{t('confirm')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </Modal>
 
-        {/* Logout Modal */}
         <Modal animationType="slide" transparent={true} visible={logoutModalVisible}>
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
@@ -742,14 +809,12 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </Modal>
 
-        {/* Role Request Modal */}
         <Modal animationType="slide" transparent={true} visible={roleRequestModalVisible}>
           <View style={styles.modalContainer}>
             <View style={styles.roleRequestModalContent}>
               <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <Text style={styles.modalTitle}>{t('applyresponder')}</Text>
 
-                {/* Station Selection */}
                 <TouchableOpacity
                   style={styles.selectStationButton}
                   onPress={() => setStationSelectionModalVisible(true)}
@@ -760,7 +825,7 @@ const ProfileScreen = ({ navigation }) => {
                       : t('selectstation')}
                   </Text>
                 </TouchableOpacity>
-                {/* role Type */}
+                
                 <Text style={styles.label}>{t('selectroletype')}</Text>
                 <View style={styles.roleTypeContainer}>
                   {role === "user" && (
@@ -788,11 +853,7 @@ const ProfileScreen = ({ navigation }) => {
                   )}
                 </View>
 
-
-
-                {/* Image Uploads */}
                 <Text style={styles.label}>{t('requiredID')}</Text>
-
                 <TouchableOpacity onPress={() => pickImageForField(setIdCardFront)} style={styles.uploadButton}>
                   <Text style={styles.uploadButtonText}>
                     {idCardFront ? t('selectedfrontid') : t('uploadfrontid')}
@@ -812,9 +873,8 @@ const ProfileScreen = ({ navigation }) => {
                     {selfieWithId ? t('selectedselfieid') : t('uploadselfieid')}
                   </Text>
                 </TouchableOpacity>
-                {idCardFront && <Image source={{ uri: selfieWithId }} style={styles.previewImage} />}
+                {selfieWithId && <Image source={{ uri: selfieWithId }} style={styles.previewImage} />}
 
-                {/* Modal Buttons */}
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.cancelButton} onPress={() => setRoleRequestModalVisible(false)}>
                     <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
@@ -825,8 +885,7 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               </ScrollView>
             </View>
-
-            {/* Station Selection Modal */}
+            
             <Modal animationType="slide" transparent={true} visible={stationSelectionModalVisible}>
               <View style={styles.stationModalContainer}>
                 <View style={styles.stationModalContent}>
@@ -850,26 +909,21 @@ const ProfileScreen = ({ navigation }) => {
                     )}
                   />
                   <TouchableOpacity
-                    style={{
-                      backgroundColor: '#007BFF',
-                      padding: 10,
-                      borderRadius: 5,
-                      alignItems: 'center',
-                      marginTop: 10
-                    }}
+                    style={styles.cancelButtonFull}
                     onPress={() => setStationSelectionModalVisible(false)}
                   >
-                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('cancel')}</Text>
+                    <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             </Modal>
           </View>
         </Modal>
+
         <UpdateContactModal
           visible={updateModalVisible}
-          contactType={updateTarget}  // "email" or "phone"
-          userId={userId}              // current logged-in user
+          contactType={updateTarget}
+          userId={userId}
           currentContact={updateTarget === "email" ? email : phone}
           onClose={(success, newContact) => {
             setUpdateModalVisible(false);
@@ -889,290 +943,84 @@ const ProfileScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  container: { flexGrow: 1, backgroundColor: '#f0f0f0' },
+  languageContainer: { padding: 10, alignItems: 'flex-end', backgroundColor: '#fff' },
+  languageRow: { flexDirection: 'row', alignItems: 'center' },
+  languagePicker: { width: 150, height: 75 },
+  
+  profileContainer: { alignItems: 'center', paddingVertical: 20, backgroundColor: '#fff', marginBottom: 10 },
+  avatar: { width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgb(232, 232, 232)' },
+  avatarPlaceholder: { width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgb(204, 204, 204)', justifyContent: 'center', alignItems: 'center' },
+  avatarPlaceholderText: { color: '#fff' },
+  saveButton: { backgroundColor: '#007bff', padding: 8, borderRadius: 25, marginTop: 10 },
+  saveButton1: { backgroundColor: '#28a745', padding: 12, borderRadius: 25, marginTop: 15, alignItems: 'center' },
+  saveButtonText: { color: '#fff', fontWeight: 'bold' , borderRadius: 25, paddingHorizontal: 20, paddingVertical: 10},
+  username: { fontSize: 18, fontWeight: 'bold', marginTop: 10, flexDirection: 'row', alignItems: 'center' },
+  
+  formContainer: { padding: 20, backgroundColor: '#fff' },
+  label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 5, marginTop: 10 },
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 15, padding: 10, backgroundColor: '#f9f9f9', color: '#333' },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  verifyBtn: { backgroundColor: '#28a745', padding: 10, borderRadius: 25, marginLeft: 10 },
+  verifyBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
+  
+  sectionHeader: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 10, marginTop: 5 },
+  divider: { height: 1, backgroundColor: '#eee', marginVertical: 15 },
+
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 5,
+    borderRadius: 15,
     paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
+    height: 50
   },
-  passwordInput: {
-    flex: 1,
-    height: 40,
-    backgroundColor: "#fff",
-    color: "#000",
-  },
-  eyeIcon: {
-    marginLeft: 10,
-  },
-  container: {
-    flexGrow: 1,
-    backgroundColor: "#f8f9fa",
-    padding: 20,
-  },
-  profileContainer: {
-    alignItems: "center",
-    marginBottom: 30,
-    marginTop: 25,
-  },
-  avatar: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    borderWidth: 3,
-    borderColor: "#007bff",
-  },
-  avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: "#007bff",
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#e0e0e0',
-  },
-  avatarPlaceholderText: {
-    color: '#757575',
-    fontSize: 16,
-  },
-  username: {
-    marginTop: 10,
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  formContainer: {
-    backgroundColor: "white",
-    padding: 15,
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 5,
-    color: "#555",
-  },
-  input: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: "#fff",
-    color: "#000",
-  },
-  saveButton: {
-    backgroundColor: "#00796b",
-    padding: 12,
-    borderRadius: 15,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  verifyBtn: {
-    backgroundColor: 'rgb(0, 123, 255)', // Blue
-    paddingVertical: 8,
-    paddingHorizontal: 50,
-    borderRadius: 10,
-    marginLeft: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verifyBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  saveButton1: {
-    backgroundColor: "#0288d1",
-    padding: 12,
-    borderRadius: 15,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  saveButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  logoutButton: {
-    backgroundColor: "#ef5350",
-    padding: 12,
-    borderRadius: 15,
-    alignItems: "center",
-  },
-  logoutButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    width: 300,
-    padding: 20,
-    backgroundColor: "white",
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  modalText: {
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: "center",
-    color: "#333",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 20,
-  },
-  cancelButton: {
-    backgroundColor: "#6c757d",
-    padding: 12,
-    borderRadius: 10,
-    flex: 1,
-    marginRight: 10,
-    alignItems: "center",
-  },
-  confirmButton: {
-    backgroundColor: "#00796b",
-    padding: 12,
-    borderRadius: 10,
-    flex: 1,
-    alignItems: "center",
-  },
-  uploadButton: {
-    backgroundColor: '#0288d1',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-    width: '100%',
-  },
-  uploadButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  roleRequestModalContent: {
-    width: '90%',
-    padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 15,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  previewImage: {
-    width: 90,
-    height: 80,
-    borderRadius: 10,
-    marginTop: 5,
-    marginBottom: 5,
-  },
-  scrollContent: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  selectStationButton: {
-    backgroundColor: '#158ac8ff',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-    width: '100%',
-  },
-  stationModalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  stationModalContent: {
-    width: '90%',
-    maxHeight: '70%',
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 20,
-  },
-  stationItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-    borderRadius: 8,
-  },
-  stationText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  roleTypeContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  roleTypeButton: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#3cea32ff",
-    borderRadius: 5
-  },
-  roleTypeButtonSelected: {
-    backgroundColor: "#1c7cdbff"
-  },
-  roleTypeText: {
-    color: "#000",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  languageContainer: {
-    position: 'absolute',
-    top: 10,
-    right: 20,
-    width: 50,
-    zIndex: 20,
-    borderRadius: 25,
-    padding: 1,
-  },
-  languagePicker: {
-    color: 'black',
-    width: '100%',
-    height: 40,
-    marginRight: 10,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 25,
+  passwordInput: { flex: 1, color: '#000' },
+  eyeIcon: { padding: 5 },
+  
+  // Password Strength Styles
+  passwordStrengthContainer: { marginTop: 10, marginBottom: 5, paddingHorizontal: 4 },
+  strengthBarBackground: { flex: 1, height: 6, backgroundColor: '#e0e0e0', borderRadius: 3, marginRight: 10, overflow: 'hidden' },
+  strengthBarFill: { height: '100%', borderRadius: 3 },
+  strengthText: { fontSize: 12, fontWeight: 'bold' },
+  criteriaContainer: { marginTop: 6, paddingLeft: 5 },
+  criteriaText: { fontSize: 12, marginBottom: 2 },
+  metCriteria: { color: 'green' },
+  unmetCriteria: { color: '#999' },
 
-  },
-  languageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e0e0e0',
-    color: 'black',
-    borderRadius: 25,
-    paddingHorizontal: 8,
-  },
+  logoutButton: { marginTop: 30, padding: 15, backgroundColor: '#dc3545', borderRadius: 25, alignItems: 'center' },
+  logoutButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+
+  // Modals
+  modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { width: '85%', backgroundColor: '#fff', borderRadius: 10, padding: 20, alignItems: 'center' },
+  roleRequestModalContent: { width: '90%', height: '80%', backgroundColor: '#fff', borderRadius: 10, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center' },
+  modalText: { fontSize: 16, marginBottom: 20, textAlign: 'center' },
+  
+  modalButtons: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 20 , borderRadius: 25, paddingHorizontal: 20, paddingVertical: 10},
+  cancelButton: { flex: 1, backgroundColor: '#6c757d', padding: 10, borderRadius: 25, marginRight: 5, alignItems: 'center' },
+  confirmButton: { flex: 1, backgroundColor: '#007bff', padding: 10, borderRadius: 25, marginLeft: 5, alignItems: 'center' },
+  cancelButtonFull: { backgroundColor: '#6c757d', padding: 10, borderRadius: 25, marginTop: 10, alignItems: 'center', width: '100%' },
+  cancelButtonText: { color: '#fff', fontWeight: 'bold' },
+  confirmButtonText: { color: '#fff', fontWeight: 'bold' },
+  
+  selectStationButton: { borderWidth: 1, borderColor: '#007bff', padding: 12, borderRadius: 25, alignItems: 'center', marginBottom: 10, backgroundColor: '#f0f8ff' },
+  uploadButton: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 25, alignItems: 'center', marginBottom: 5, backgroundColor: '#eee' },
+  uploadButtonText: { color: '#333' },
+  previewImage: { width: '100%', height: 150, borderRadius: 25, marginBottom: 15, resizeMode: 'contain', backgroundColor: '#f0f0f0' },
+  
+  roleTypeContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 15 },
+  roleTypeButton: { padding: 10, borderWidth: 1, borderColor: '#ccc', borderRadius: 25, width: '45%', alignItems: 'center' },
+  roleTypeButtonSelected: { borderColor: '#007bff', backgroundColor: '#e6f2ff' },
+  roleTypeText: { fontSize: 12, fontWeight: 'bold', textAlign: 'center' },
+  
+  stationModalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  stationModalContent: { width: '85%', maxHeight: '70%', backgroundColor: '#fff', borderRadius: 10, padding: 20 },
+  stationItem: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  stationText: { fontSize: 16 },
 });
 
 export default ProfileScreen;
-

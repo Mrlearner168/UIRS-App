@@ -24,7 +24,7 @@ import EncryptedStorage from 'react-native-encrypted-storage';
 import ImageViewing from "react-native-image-viewing";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import RespondersModal from '../components/ResponderListModal';
-import { useGlobalIncidentListener } from '../hook/useGlobalIncidentListener';
+//import { useGlobalIncidentListener } from '../hook/useGlobalIncidentListener';
 
 const ResponderViewList = () => {
   const [incidents, setIncidents] = useState([]);
@@ -135,9 +135,9 @@ const ResponderViewList = () => {
     getStation();
   }, []);
 
-  useGlobalIncidentListener(stationId, (incident) => {
-    setIncidents(prev => [incident, ...prev]);
-  });
+  //useGlobalIncidentListener(stationId, (incident) => {
+    //setIncidents(prev => [incident, ...prev]);
+  //});
   //console.log(userRole);
   const getReadableAddress = async (location) => {
     if (!location) return "Location unavailable";
@@ -554,7 +554,7 @@ const ResponderViewList = () => {
                   <View style={styles.ongoingNoticeBox}>
                     <Text style={styles.ongoingNoticeTitle}>Incident Info</Text>
                     <Text style={styles.ongoingNoticeText}>
-                      {t('ongoininfo')}
+                      {t('ongoinginfo')}
                     </Text>
                   </View>
                 )}

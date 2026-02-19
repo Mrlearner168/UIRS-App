@@ -1,45 +1,37 @@
 import { RNMAPBOX_MAPS_DOWNLOAD_TOKEN } from "@env";
 import { Ionicons } from '@expo/vector-icons';
-import notifee from '@notifee/react-native';
-import messaging from '@react-native-firebase/messaging';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
-import { getFocusedRouteNameFromRoute, NavigationContainer, useNavigation } from '@react-navigation/native';
+import { getFocusedRouteNameFromRoute, NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import MapboxGL from '@rnmapbox/maps';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
+  AppState,
+  DeviceEventEmitter,
   Modal,
-  NativeEventEmitter,
   NativeModules,
-  PermissionsAndroid,
-  Platform, // Added
-  Text, // Added
-  TouchableOpacity, // Added
-  Vibration,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
   View
 } from 'react-native';
-import DeviceInfo from 'react-native-device-info';
-// Added missing import for EncryptedStorage used in App component
+
 import EncryptedStorage from 'react-native-encrypted-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootSiblingParent } from 'react-native-root-siblings';
 import { AuthContext, AuthProvider } from './src/context/AuthContext';
 import { IncidentStationMapProvider } from './src/context/IncidentStationMapContext';
-import { SocketProvider } from './src/context/SocketContext';
 import { ToastProvider } from './src/context/ToastContext';
-import { useFCMToken } from './src/hook/useFCMToken';
-import { useGlobalIncidentListener } from './src/hook/useGlobalIncidentListener';
+import { PermissionService } from './src/services/PermissionService';
 
-MapboxGL.setAccessToken(RNMAPBOX_MAPS_DOWNLOAD_TOKEN);
-
-// Import Screens
+// Import Screens & Hooks
 import ResponderLocationTracking from './src/hook/ResponderLocationTracking';
+import { useFCMToken } from './src/hook/useFCMToken';
 import AddStationScreen from './src/screens/AddStationScreen';
 import AdminPanel from './src/screens/AdminPanel';
 import AdminRemarks from './src/screens/AdminRemarks';
@@ -57,461 +49,104 @@ import ResponderPanel from './src/screens/ResponderDashboard';
 import TrackLocationScreen from './src/screens/TrackLocationScreen';
 import UpdatesScreen from './src/screens/UpdatesScreen';
 
+MapboxGL.setAccessToken(RNMAPBOX_MAPS_DOWNLOAD_TOKEN);
 
 const Drawer = createDrawerNavigator();
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
-const { AutoStartModule, OverlayPermissionModule } = NativeModules;
-function AppInitializer({ initialProps }) {
-  // listener mounts once
-  useGlobalIncidentListener();
-  
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <RootNavigator initialProps={initialProps} />
-      <ResponderLocationTracking />
-    </GestureHandlerRootView>
-  );
-}
 
-//Dashboard tabs
-function HomeTabs() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
+// --- ⚙️ SHARED NAVIGATION COMPONENTS ---
 
-          if (route.name === "Home") {
-            iconName = "home";
-          } else if (route.name === "Profile") {
-            iconName = "person";
-          } else if (route.name === "Report") {
-            iconName = "add-circle";
-          } else if (route.name === "Event Updates") {
-            iconName = "refresh"; 
-          }
+const TabIcon = (name, color, size) => <Ionicons name={name} size={size} color={color} />;
 
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen
-        name="Home"
-        component={Dashboard1}
-        options={{ headerShown: false }}
-      />
-      <Tab.Screen
-        name="Report"
-        component={ReportIncident}
-        options={{ headerShown: false }}
-      />
-      <Tab.Screen
-        name="Event Updates"
-        component={UpdatesScreen}
-        options={{ headerShown: false }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={Profile}
-        options={{ headerShown: false }}
-      />
-    </Tab.Navigator>
-  );
-}
-//add edit delete station tabs
-function HomeTabs1() {
-  const navigation = useNavigation(); // now you get navigation here
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
+const createTabScreenOptions = ({ route }) => ({
+  tabBarIcon: ({ color, size }) => {
+    let iconName;
+    if (route.name === "Home") iconName = "home";
+    else if (route.name === "Profile") iconName = "person";
+    else if (route.name === "Report") iconName = "add-circle";
+    else if (route.name === "Event Updates") iconName = "refresh";
+    return TabIcon(iconName, color, size);
+  },
+  headerShown: false,
+});
 
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
+const GenericTabNavigator = (MainComponent) => (
+  <Tab.Navigator screenOptions={createTabScreenOptions}>
+    <Tab.Screen name="Home" component={MainComponent} />
+    <Tab.Screen name="Report" component={ReportIncident} />
+    <Tab.Screen name="Event Updates" component={UpdatesScreen} />
+    <Tab.Screen name="Profile" component={Profile} />
+  </Tab.Navigator>
+);
 
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen 
-        name="Home" 
-        component={AddStationScreen} 
-        options={{ headerShown: false }}
-      />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }}  />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
-//Graph Tabs 
-function HomeTabs3() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
+// Individual Tab Stacks matching App-new.js logic
+const HomeTabs = () => GenericTabNavigator(Dashboard1);
+const HomeTabs1 = () => GenericTabNavigator(AddStationScreen);
+const HomeTabs3 = () => GenericTabNavigator(Graph);
+const HomeTabs4 = () => GenericTabNavigator(AdminPanel);
+const HomeTabs5 = () => GenericTabNavigator(UsersData);
+const HomeTabs6 = () => GenericTabNavigator(ResponderPanel);
+const HomeTabs7 = () => GenericTabNavigator(Reports);
+const HomeTabs8 = () => GenericTabNavigator(RequestScreen);
+const HomeTabs9 = () => GenericTabNavigator(NewUserValidation);
+const HomeTabs10 = () => GenericTabNavigator(AdminRemarks);
 
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Home" component={Graph} options={{ headerShown: false }} />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }}  />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
-//Admin Panel Tabs
-function HomeTabs4() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh';
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Home" component={AdminPanel} options={{ headerShown: false }}  />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }} />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
-//UsersData Tabs
-function HomeTabs5() {
-  const navigation = useNavigation(); // now you get navigation here
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen 
-        name="Home" 
-        component={UsersData} 
-        options={{ headerShown: false }}
-      />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }}  />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }}  />
-    </Tab.Navigator>
-  );
-}
-//Responders Tabs
-function HomeTabs6() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Home" component={ResponderPanel} options={{ headerShown: false }} />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }} />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
-//Reports tabs 
-function HomeTabs7() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name ="Home" component={Reports} options={{ headerShown: false }} />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }}  />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
-//request tabs
-function HomeTabs8() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen 
-        name="Home" 
-        component={RequestScreen} 
-        options={{ headerShown: false }} 
-      />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }} />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
-//New User Validation tabs
-function HomeTabs9() {
-  const navigation = useNavigation(); // now you get navigation here
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen 
-        name="Home" 
-        component={NewUserValidation} 
-        options={{ headerShown: false }}
-      />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }} />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
-//admin post update 
-function HomeTabs10() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Report') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Event Updates') {
-            iconName = 'refresh'; 
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Home" component={AdminRemarks} options={{ headerShown: false }} />
-      <Tab.Screen name="Report" component={ReportIncident} options={{ headerShown: false }} />
-      <Tab.Screen name="Event Updates" component={UpdatesScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-    </Tab.Navigator>
-  );
-}
+// --- 📁 DRAWER NAVIGATORS ---
 
 function getActiveRouteName(route) {
   return getFocusedRouteNameFromRoute(route) ?? 'Home';
 }
 
-//User Drawer
+const hideHeaderOnTabs = ({ route }) => {
+  const activeRouteName = getActiveRouteName(route);
+  const isTabScreen = ['Report', 'Profile', 'Event Updates'].includes(activeRouteName);
+  return { headerShown: !isTabScreen };
+};
+
+// User Drawer
 function DrawerNavigator() {
   return (
-    <Drawer.Navigator initialRouteName="Dashboard" options={{ headerShown: false }}>
-      <Drawer.Screen name="Dashboard" component={HomeTabs} options={{ headerShown: false }}
-      />
-    </Drawer.Navigator>
-  );
-};
-//admin Drawer
-function DrawerNavigator1() {
-  return (
-    <Drawer.Navigator initialRouteName="Admin Dashboard" >
-      <Drawer.Screen name="Admin Dashboard" component={HomeTabs4} options={({ route }) => {
-        const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
-      <Drawer.Screen name="Your Reports" component={HomeTabs7}  options={({ route }) => {
-                const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
-
-      <Drawer.Screen name="Post Update" component={HomeTabs10}  options={({ route }) => {
-                const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
-
-      <Drawer.Screen name="Graphs & Statistics Overview" component={HomeTabs3}  options={({ route }) => {
-                const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
-      <Drawer.Screen name="Manage Users" component={HomeTabs5}  options={({ route }) => {
-                const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
-      
-      <Drawer.Screen name="Request Role Change" component={HomeTabs8}  options={({ route }) => {
-                const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
-      <Drawer.Screen name="New User Request" component={HomeTabs9}  options={({ route }) => {
-                const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
-      <Drawer.Screen name="Add/Edit/Delete Stations" component={HomeTabs1}  options={({ route }) => {
-                const activeRouteName = getActiveRouteName(route);
-        if (activeRouteName === 'Report' || activeRouteName === 'Profile' || activeRouteName === 'Event Updates') {
-          return { headerShown: false };
-        }
-        return { headerShown: true };
-      }}/>
+    <Drawer.Navigator initialRouteName="Dashboard" screenOptions={{ headerShown: false }}>
+      <Drawer.Screen name="Dashboard" component={HomeTabs} />
     </Drawer.Navigator>
   );
 }
-//Responder Drawer
+
+// Admin Drawer
+function DrawerNavigator1() {
+  return (
+    <Drawer.Navigator initialRouteName="Admin Dashboard">
+      <Drawer.Screen name="Admin Dashboard" component={HomeTabs4} options={hideHeaderOnTabs} />
+      <Drawer.Screen name="Your Reports" component={HomeTabs7} options={hideHeaderOnTabs} />
+      <Drawer.Screen name="Post Update" component={HomeTabs10} options={hideHeaderOnTabs} />
+      <Drawer.Screen name="Graphs & Statistics Overview" component={HomeTabs3} options={hideHeaderOnTabs} />
+      <Drawer.Screen name="Manage Users" component={HomeTabs5} options={hideHeaderOnTabs} />
+      <Drawer.Screen name="Request Role Change" component={HomeTabs8} options={hideHeaderOnTabs} />
+      <Drawer.Screen name="New User Request" component={HomeTabs9} options={hideHeaderOnTabs} />
+      <Drawer.Screen name="Add/Edit/Delete Stations" component={HomeTabs1} options={hideHeaderOnTabs} />
+    </Drawer.Navigator>
+  );
+}
+
+// Responder Drawer Content
 function CustomResponderDrawerContent(props) {
   const { authData } = useContext(AuthContext);
-
   return (
     <DrawerContentScrollView {...props}>
-      <DrawerItem
-        label="Responder Dashboard"
-        onPress={() => props.navigation.navigate('Responder Dashboard')}
-      />
-      <DrawerItem
-        label="Graphs & statistics Overview"
-        onPress={() => props.navigation.navigate('Graphs & statistics Overview')}
-      />
-      <DrawerItem
-        label="Your Reports"
-        onPress={() => props.navigation.navigate('Your Reports')}
-      />
-      {authData.role === 'responder_head' && (
+      <DrawerItem label="Responder Dashboard" onPress={() => props.navigation.navigate('Responder Dashboard')} />
+      <DrawerItem label="Graphs & statistics Overview" onPress={() => props.navigation.navigate('Graphs & statistics Overview')} />
+      <DrawerItem label="Your Reports" onPress={() => props.navigation.navigate('Your Reports')} />
+      {authData?.role === 'responder_head' && (
         <>
-          <DrawerItem
-            label="Request Role Change"
-            onPress={() => props.navigation.navigate('Request Role Change')}
-          />
-          <DrawerItem
-            label="Manage users"
-            onPress={() => props.navigation.navigate('Manage Users')}
-          />
+          <DrawerItem label="Request Role Change" onPress={() => props.navigation.navigate('Request Role Change')} />
+          <DrawerItem label="Manage users" onPress={() => props.navigation.navigate('Manage Users')} />
         </>
       )}
     </DrawerContentScrollView>
   );
 }
+
 function DrawerNavigator2() {
   return (
     <Drawer.Navigator
@@ -522,308 +157,377 @@ function DrawerNavigator2() {
       <Drawer.Screen name="Graphs & statistics Overview" component={HomeTabs3} />
       <Drawer.Screen name="Your Reports" component={HomeTabs7} />
       <Drawer.Screen name="Request Role Change" component={HomeTabs8} />
-      <Drawer.Screen name="Manage Users" component={HomeTabs5}/>
+      <Drawer.Screen name="Manage Users" component={HomeTabs5} />
     </Drawer.Navigator>
   );
 }
+
+// --- 🚀 ROOT NAVIGATION & LOGIC ---
+
 const commonScreens = (
   <>
-    <Stack.Screen name="Login" component={Login} options={{ headerShown: false }} />
-    <Stack.Screen name="UserHome" component={DrawerNavigator} options={{ headerShown: false }} />
-    <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
-    <Stack.Screen name="AdminDashboard" component={DrawerNavigator1} options={{ headerShown: false }} />
-    <Stack.Screen name="ResponderDashboard" component={DrawerNavigator2} options={{ headerShown: false }} />
-    <Stack.Screen name="ReportIncident" component={ReportIncident} options={{ headerShown: false }} />
-    <Stack.Screen name="TrackLocation" component={TrackLocationScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="Login" component={Login} />
+    <Stack.Screen name="UserHome" component={DrawerNavigator} />
+    <Stack.Screen name="Register" component={Register} />
+    <Stack.Screen name="AdminDashboard" component={DrawerNavigator1} />
+    <Stack.Screen name="ResponderDashboard" component={DrawerNavigator2} />
+    <Stack.Screen name="ReportIncident" component={ReportIncident} />
+    <Stack.Screen name="TrackLocation" component={TrackLocationScreen} />
     <Stack.Screen name="YourReports" component={HomeTabs7} />
   </>
 );
-function RootNavigator({ initialProps }) {
+
+function RootNavigator() {
   const { authData, loading } = useContext(AuthContext);
-  const navigationRef = useRef(); 
-  
-  // 1. STATE FOR EMERGENCY MODAL
-  const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
-  const [incidentData, setIncidentData] = useState(null);
-
-  // 2. COMMON HANDLER FOR EMERGENCY ACTIVATION
-  const activateEmergencyMode = (data) => {
-    if (data?.is_emergency) {
-      console.log("🚨 ACTIVATING EMERGENCY MODAL", data);
-      setIncidentData(data);
-      setEmergencyModalVisible(true);
-      Vibration.vibrate([0, 500, 200, 500]); // Haptic feedback
-    }
-  };
-
-  // 3. EFFECT: Handle "Cold Start" (App Launched from Dead State)
-  useEffect(() => {
-    if (initialProps?.is_emergency) {
-      activateEmergencyMode(initialProps);
-    }
-  }, [initialProps]);
-
-  // 4. EFFECT: Handle "Warm Start" (App in Background/Foreground)
-  useEffect(() => {
-    const deviceEventEmitter = new NativeEventEmitter(NativeModules.RCTDeviceEventEmitter);
-    const subscription = deviceEventEmitter.addListener('onEmergencyNotification', (event) => {
-      activateEmergencyMode(event);
-    });
-    return () => subscription.remove();
-  }, []);
-
-  // 5. EFFECT: Handle FCM Background/Terminated via React Native Firebase (Backup)
-  useEffect(() => {
-    const handleNavigation = (remoteMessage) => {
-      if (remoteMessage?.data?.type === 'emergency') {
-        activateEmergencyMode({...remoteMessage.data, is_emergency: true});
-      }
-    };
-
-    messaging().getInitialNotification().then(handleNavigation);
-    const unsubscribeOpen = messaging().onNotificationOpenedApp(handleNavigation);
-
-    return () => {
-      unsubscribeOpen();
-    };
-  }, []);
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#D32F2F" />
       </View>
     );
   }
 
   return (
-    <>
-      <NavigationContainer ref={navigationRef}> 
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {!authData?.token ? (
-            <Stack.Screen name="Login1" component={Login} />
-          ) : authData.role === 'user' ? (
-            <Stack.Screen name="UserDashboard" component={DrawerNavigator} />
-          ) : authData.role === 'admin' ? (
-            <Stack.Screen name="AdminDashboard1" component={DrawerNavigator1} />
-          ) : (authData.role === 'responder_head' || authData.role === 'responder_personnel') ? (
-            <Stack.Screen name="ResponderDashboard1" component={DrawerNavigator2} />
-          ) : (
-            <Stack.Screen name="Login2" component={Login} />
-          )}
-          {commonScreens}
-        </Stack.Navigator>
-      </NavigationContainer>
-
-      {/* 6. GLOBAL EMERGENCY MODAL */}
-      <Modal 
-        visible={emergencyModalVisible} 
-        transparent={true} 
-        animationType="slide"
-        statusBarTranslucent={true}
-        onRequestClose={() => setEmergencyModalVisible(false)} // Android Back Button
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ width: '85%', backgroundColor: 'white', borderRadius: 20, padding: 25, alignItems: 'center', elevation: 10 }}>
-            
-            <Ionicons name="warning" size={60} color="#FF0000" />
-            
-            <Text style={{ fontSize: 22, fontWeight: 'bold', marginVertical: 10, color: '#FF0000', textAlign: 'center' }}>
-              CRITICAL INCIDENT
-            </Text>
-            
-            <Text style={{ textAlign: 'center', marginBottom: 20, fontSize: 16, color: '#333' }}>
-              {incidentData?.body || "An emergency incident requires your immediate attention."}
-            </Text>
-            
-            <TouchableOpacity 
-              style={{ backgroundColor: '#FF0000', paddingVertical: 15, borderRadius: 10, width: '100%', alignItems: 'center', marginBottom: 12 }}
-              onPress={() => {
-                setEmergencyModalVisible(false);
-                // Navigate to Responder Dashboard
-                if (navigationRef.current) {
-                  navigationRef.current.navigate('ResponderDashboard1', { 
-                    incidentData: incidentData 
-                  });
-                }
-              }}
-            >
-              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>VIEW REPORT</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              onPress={() => setEmergencyModalVisible(false)}
-              style={{ padding: 10 }}
-            >
-              <Text style={{ color: '#666', fontSize: 14 }}>DISMISS</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </>
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!authData?.token ? (
+          <Stack.Screen name="Login1" component={Login} />
+        ) : authData.role === 'user' ? (
+          <Stack.Screen name="UserDashboard" component={DrawerNavigator} />
+        ) : authData.role === 'admin' ? (
+          <Stack.Screen name="AdminDashboard1" component={DrawerNavigator1} />
+        ) : (authData.role === 'responder_head' || authData.role === 'responder_personnel') ? (
+          <Stack.Screen name="ResponderDashboard1" component={DrawerNavigator2} />
+        ) : (
+          <Stack.Screen name="Login2" component={Login} />
+        )}
+        {commonScreens}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
-export default function App(props) {
-  const fcmToken = useFCMToken();
-  console.log('FCM Token:', fcmToken);
+function AppInitializer({ initialProps }) {
+  const { authData } = useContext(AuthContext);
+  const { SharedPrefModule } = NativeModules;
 
   useEffect(() => {
-    const loadData = async () => {
-      // 1. Load Language
+    const manageNativeService = async () => {
       try {
-        const lang = await EncryptedStorage.getItem('userLanguage');
-        // Ensure i18n is imported or this line will throw if not defined globally
-        if (lang && global.i18n) global.i18n.changeLanguage(lang);
-      } catch (e) {
-        console.log("Language load error:", e);
+        if (Platform.OS !== 'android' || !SharedPrefModule) return;
+        if (authData?.token) {
+          const dataToSave = {
+            userId: String(authData.id),
+            isHead: String(authData.is_head),
+            role: String(authData.role || ""),
+            stationId: String(authData.station_id || authData.stationId || ""),
+            status: String(authData.status || ""),
+            token: String(authData.token)
+          };
+          await SharedPrefModule.saveData(dataToSave);
+        } else if (!authData) {
+          await SharedPrefModule.clearDataAndStopService();
+        }
+      } catch (error) {
+        console.error(`Native Handoff Failure: ${error.message}`);
+      }
+    };
+    manageNativeService();
+  }, [authData]);
+
+  useEffect(() => {
+    if (initialProps?.is_emergency || initialProps?.incident_id) {
+      setTimeout(() => DeviceEventEmitter.emit('ON_NATIVE_EMERGENCY_LAUNCH', initialProps), 1000);
+    }
+  }, [initialProps]);
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <RootNavigator />
+      <ResponderLocationTracking />
+    </GestureHandlerRootView>
+  );
+}
+
+// --- 🏥 HEALTH DASHBOARD COMPONENT ---
+
+const HealthDashboard = ({ visible, health, onFix, onClose, loading }) => {
+  if (!health) return null;
+
+  const renderItem = (label, isGranted, type, description) => (
+    <View style={styles.itemRow}>
+      <View style={[styles.iconBadge, { backgroundColor: isGranted ? '#E8F5E9' : '#FFEBEE' }]}>
+        <Text style={{ fontSize: 18 }}>{isGranted ? "✅" : "⚠️"}</Text>
+      </View>
+      <View style={styles.itemContent}>
+        <Text style={styles.itemTitle}>{label}</Text>
+        <Text style={styles.itemDesc}>{description}</Text>
+      </View>
+      {!isGranted && (
+        <TouchableOpacity 
+          style={styles.fixBtnSmall} 
+          onPress={() => onFix(type)}
+        >
+          <Text style={styles.fixBtnText}>FIX</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  // Calculate if we can allow the user to close the modal
+  // We force them to stay if Runtime permissions (Camera/Loc) are missing.
+  const canSkip = health.runtimeGranted; 
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>System Check</Text>
+            <Text style={styles.modalSubtitle}>
+              {health.isRobust ? "System is ready for emergencies." : "Setup required for reliability."}
+            </Text>
+          </View>
+
+          <ScrollView style={styles.modalBody}>
+            {/* 1. CRITICAL RUNTIME */}
+            {renderItem(
+              "Essential Permissions", 
+              health.runtimeGranted, 
+              "runtime", 
+              "Camera, Microphone, Location, & Notifications"
+            )}
+
+            {/* 2. BACKGROUND RELIABILITY */}
+            {renderItem(
+              "Background Launch", 
+              health.overlayGranted, 
+              "overlay", 
+              "Allows alerts to appear over other apps"
+            )}
+            
+            {renderItem(
+              "Battery Unrestricted", 
+              health.batteryGranted, 
+              "battery", 
+              "Prevents the system from killing the app"
+            )}
+
+            {/* 3. AUTOSTART (Complex Logic) */}
+            {health.hiddenRisks?.isHighRiskDevice && (
+              renderItem(
+                "Auto-Start / Boot", 
+                health.hiddenRisks.manualCheckRequired 
+                  ? (health.hiddenRisks.userIgnoredAutostart ? true : false) // If ignored, show green/accepted
+                  : health.hiddenRisks.miuiAutoStartGranted, 
+                "autostart", 
+                "Ensures app restarts after phone reboot"
+              )
+            )}
+
+            {/* 4. ADVANCED */}
+            {renderItem(
+              "Do Not Disturb Access", 
+              health.dndGranted, 
+              "dnd", 
+              "Allows alerts to play sound even in silent mode"
+            )}
+
+             {/* 5. FULL SCREEN INTENT (Android 14+) */}
+             {Platform.Version >= 34 && renderItem(
+              "Full Screen Alerts", 
+              health.fsiGranted, 
+              "fsi", 
+              "Required for Lock Screen popups on Android 14"
+            )}
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            {canSkip ? (
+               <TouchableOpacity style={styles.continueBtn} onPress={onClose}>
+                 <Text style={styles.continueBtnText}>
+                    {health.isRobust ? "Everything Looks Good" : "I'll Fix Later"}
+                 </Text>
+               </TouchableOpacity>
+            ) : (
+              <View style={styles.blockedContainer}>
+                <Text style={styles.blockedText}>Essential permissions are required to continue.</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+export default function App(props) {
+  const fcmToken = useFCMToken(); 
+  
+  const [healthReport, setHealthReport] = useState(null);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const appState = useRef(AppState.currentState);
+
+  // --- CORE SYSTEM CHECK ---
+  const performSystemCheck = async (silent = false) => {
+    try {
+      if (!silent) setIsLoading(true);
+
+      // 1. Language Load
+      const lang = await EncryptedStorage.getItem('userLanguage');
+      if (lang && global.i18n) global.i18n.changeLanguage(lang);
+
+      // 2. Check Permissions
+      const health = await PermissionService.checkHealth();
+      
+      // 3. Inject User Preference for "Manual Check" Devices (Oppo/Vivo)
+      const ignoredAutostart = await EncryptedStorage.getItem('ignore_autostart_alert');
+      if (health && health.hiddenRisks) {
+         health.hiddenRisks.userIgnoredAutostart = (ignoredAutostart === 'true');
       }
 
-      // 2. Request Permissions
-      await requestAllPermissions();
-    };
-    
-    loadData();
-  }, []);
-  
-  const requestAllPermissions = async () => {
-    console.log("Starting Robust Permission Check...");
-  
-    try {
-      if (Platform.OS === 'android') {
+      // 4. Update State
+      setHealthReport(health);
+
+      // 5. Decide to Show Dashboard
+      // Show if: Not Robust OR (High Risk Device AND Not Ignored)
+      const isAutoStartIssue = health.hiddenRisks?.isHighRiskDevice 
+                               && !health.hiddenRisks?.miuiAutoStartGranted 
+                               && !health.hiddenRisks?.userIgnoredAutostart;
       
-        // ---------------------------------------------------------
-        // 1. STANDARD ANDROID PERMISSIONS
-        // ---------------------------------------------------------
-        const permissionsToRequest = [
-          PermissionsAndroid.PERMISSIONS.SEND_SMS,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS, // Safe on RN 0.70+
-        ].filter(Boolean);
-      
-        try {
-          await PermissionsAndroid.requestMultiple(permissionsToRequest);
-        } catch (e) { 
-          console.warn("Standard perm error", e); 
-        }
-      
-        // ---------------------------------------------------------
-        // 2. EXPO PERMISSIONS (Safe Wrap)
-        // ---------------------------------------------------------
-        try { await Location.requestForegroundPermissionsAsync(); } catch(e) {}
-        try { await ImagePicker.requestCameraPermissionsAsync(); } catch(e) {}
-      
-        // ---------------------------------------------------------
-        // 3. OVERLAY / DRAW OVER APPS (Using Native Module)
-        // ---------------------------------------------------------
-        let canDraw = false;
-        try {
-            // Use your custom module for a reliable check
-            canDraw = await OverlayPermissionModule.isOverlayPermissionGranted();
-        } catch (e) {
-            console.warn("Overlay Check Failed:", e);
-        }
-      
-        if (!canDraw) {
-            Alert.alert(
-                '⚠️ Screen Access Required',
-                'To show the emergency screen immediately over other apps, please allow "Display over other apps".',
-                [
-                    { text: 'Later', style: 'cancel' },
-                    { 
-                        text: 'Go to Settings', 
-                        onPress: async () => {
-                            // Use your custom module to open the direct page
-                            try {
-                                await OverlayPermissionModule.requestOverlayPermission();
-                            } catch (e) {
-                                Linking.openSettings();
-                            }
-                        } 
-                    }
-                ]
-            );
-        }
-      
-        // ---------------------------------------------------------
-        // 4. SOUND / DND PERMISSION
-        // ---------------------------------------------------------
-        // Check if we can bypass DND (Do Not Disturb)
-        const settings = await notifee.getNotificationSettings();
-        if (settings.android.alarm !== 1) { // 1 = Authorized
-            Alert.alert(
-                '⚠️ Sound Permission',
-                'To ensure the alarm rings loudly even in Silent/DND mode, please allow "Alarms & Reminders" or "DND Access".',
-                [
-                    { text: 'Later', style: 'cancel' },
-                    { 
-                        text: 'Go to Settings', 
-                        onPress: () => Linking.sendIntent('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS')
-                    }
-                ]
-            );
-        }
-      
-        // ---------------------------------------------------------
-        // 5. AUTOSTART (Manufacturer Specific)
-        // ---------------------------------------------------------
-        const hasVerifiedAutostart = await EncryptedStorage.getItem('autostart_verified_v2'); 
-        const brand = DeviceInfo.getBrand().toLowerCase();
-        const aggressiveBrands = ['vivo', 'oppo', 'xiaomi', 'redmi', 'realme', 'huawei', 'honor', 'iqoo', 'oneplus'];
-        
-        // Only ask if it's a known brand AND we haven't asked before
-        if (aggressiveBrands.includes(brand) && !hasVerifiedAutostart) {
-          Alert.alert(
-            `🚨 Action Required for ${brand.toUpperCase()}`,
-            `To ensure the alarm rings when the app is closed, you MUST enable "Autostart".\n\n1. Tap "Configure Now"\n2. Find this app in the list\n3. Turn ON the switch`,
-            [
-              { text: 'Later', style: 'cancel' },
-              {
-                text: 'CONFIGURE NOW',
-                onPress: async () => {
-                  // Save that we asked, so we don't spam the user every time
-                  await EncryptedStorage.setItem('autostart_verified_v2', 'true');
-                  
-                  // Use your custom AutoStart Module
-                  try {
-                    const success = await AutoStartModule.openAutoStartSettings();
-                    if (!success) {
-                        // If specific intent failed, fallback to app details
-                        Linking.openSettings();
-                    }
-                  } catch (e) {
-                    console.warn("Autostart module failed", e);
-                    Linking.openSettings();
-                  }
-                }
-              }
-            ],
-            { cancelable: false }
-          );
-        }
-      
+      if (!health.isRobust || isAutoStartIssue) {
+          setShowDashboard(true);
+      } else {
+          // If everything is great, we can hide it (unless user opened it manually later)
+          setShowDashboard(false);
       }
-    } catch (err) {
-      console.error('CRITICAL: Permission Flow Failed', err);
+    } catch (e) {
+      console.error("System Check Error:", e);
+    } finally {
+      setIsLoading(false);
     }
-};
+  };
+
+  useEffect(() => {
+    performSystemCheck();
+
+    // Re-check on App Resume (returning from Settings)
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log("🔄 App foregrounded: Re-checking permissions...");
+        performSystemCheck(true); // Silent check
+      }
+      appState.current = nextAppState;
+    });
+
+    const emergencySub = DeviceEventEmitter.addListener('onEmergencyNotification', (data) => {
+      console.log("🚨 Emergency Data:", data);
+    });
+
+    return () => {
+      subscription.remove();
+      emergencySub.remove();
+    };
+  }, []);
+
+  // --- HANDLERS ---
+  const handleFix = async (type) => {
+    // 1. Handle Autostart Logic specifically
+    if (type === 'autostart' && healthReport?.hiddenRisks?.manualCheckRequired) {
+        // For Oppo/Vivo: We send them to settings, but we can't verify the result.
+        // We ask them if they did it.
+        Alert.alert(
+            "Enable Auto-Start",
+            "We will take you to settings. Please find this app and enable 'Auto-Start' or 'High Background Power'.",
+            [
+                { text: "Cancel", style: "cancel" },
+                { 
+                    text: "Go to Settings", 
+                    onPress: async () => {
+                        await PermissionService.fixPermission('autostart');
+                        // After a delay (simulating return), ask confirmation
+                        setTimeout(() => {
+                             Alert.alert(
+                                 "Did you enable it?",
+                                 "We cannot verify this setting automatically.",
+                                 [
+                                     { text: "No, take me back", onPress: () => handleFix('autostart') },
+                                     { 
+                                         text: "Yes, I did", 
+                                         onPress: async () => {
+                                             await EncryptedStorage.setItem('ignore_autostart_alert', 'true');
+                                             performSystemCheck(true);
+                                         }
+                                     }
+                                 ]
+                             );
+                        }, 1000);
+                    }
+                }
+            ]
+        );
+        return;
+    }
+
+    // 2. Standard Fix
+    await PermissionService.fixPermission(type);
+    
+    // 3. Special handling for Runtime: It has its own dialog, we need to wait a bit
+    if (type === 'runtime') {
+       // The app will pause here while system dialogs show. 
+       // The AppState listener will catch the return and refresh.
+    }
+  };
+
   function MainApp() {
-    const fcmToken = useFCMToken(); // hook runs only if logged in
-    console.log('FCM token:', fcmToken);
+    const fcmToken = useFCMToken(); 
+    return null; 
   }
 
   return (
     <RootSiblingParent>
       <AuthProvider>
         <IncidentStationMapProvider>
-          <SocketProvider>
             <ToastProvider>
               <AppInitializer initialProps={props} />
               <MainApp />
+              
+              {/* PROFESSIONAL DASHBOARD */}
+              <HealthDashboard 
+                visible={showDashboard} 
+                health={healthReport}
+                loading={isLoading}
+                onFix={handleFix}
+                onClose={() => setShowDashboard(false)}
+              />
+
             </ToastProvider>
-          </SocketProvider>
         </IncidentStationMapProvider>
       </AuthProvider>
     </RootSiblingParent>
   );
 }
+
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContainer: { width: '100%', maxHeight: '85%', backgroundColor: 'white', borderRadius: 20, overflow: 'hidden' },
+  modalHeader: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#EEE' },
+  modalTitle: { fontSize: 22, fontWeight: 'bold' },
+  modalSubtitle: { fontSize: 14, color: '#666', marginTop: 4 },
+  modalBody: { padding: 20 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  iconBadge: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  itemContent: { flex: 1 },
+  itemTitle: { fontSize: 16, fontWeight: '600' },
+  itemDesc: { fontSize: 12, color: '#888' },
+  fixBtnSmall: { backgroundColor: '#D32F2F', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+  fixBtnText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
+  modalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: '#EEE' },
+  continueBtn: { backgroundColor: '#333', padding: 15, borderRadius: 12, alignItems: 'center' },
+  continueBtnText: { color: 'white', fontWeight: 'bold' },
+  blockedText: { color: '#D32F2F', textAlign: 'center' }
+});
