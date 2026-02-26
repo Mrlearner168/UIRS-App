@@ -360,14 +360,6 @@ const AdminPanel = () => {
   //console.log("Filtered Incidents:", JSON.stringify(filteredIncidents, null, 2));
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>
-        {t('head')}{" "}
-        <Icon
-          name={isOnline ? "wifi" : "wifi-off"}
-          size={20}
-          color={isOnline ? "green" : "red"}
-        />
-      </Text>
 
       <TextInput
         style={styles.searchInput}
@@ -815,7 +807,7 @@ const styles = StyleSheet.create({
   searchInput: { 
     borderLeftWidth: 3, 
     borderRightWidth: 3, 
-    height: 40, 
+    height: 45, 
     borderColor: "gray", 
     borderWidth: 1, 
     marginBottom: 10, 

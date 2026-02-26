@@ -3,72 +3,96 @@ package com.rogerskie09.uirsv4
 import android.util.Log
 
 /**
- * A Singleton Helper to prevent the Emergency Screen/Siren from launching
- * multiple times for the exact same incident within a short window.
+ * A Singleton Helper optimized for dual-channel (Socket + FCM) emergency alerts.
  */
 object EventDeduplicator {
 
     private const val TAG = "EventDeduplicator_DEBUG"
 
-    // Storage for the last event
+    // Maps Incident ID to its Last Processed Time (Handles multiple incidents at once)
+    private val processedIncidents = mutableMapOf<String, Long>()
+
     @Volatile
-    private var lastIncidentId: String? = null
-    @Volatile
-    private var lastProcessedTime: Long = 0
+    private var lastGlobalAlertTime: Long = 0
 
     // CONFIGURATION
-    // 1. Same ID Threshold: Block the SAME incident if it arrives within 30 seconds
-    // (Increased to 30s because FCM can sometimes be delayed)
-    private const val DUPLICATE_ID_THRESHOLD_MS = 30000L 
-    
-    // 2. Global Cooldown: Block ANY new alert if one just happened 3 seconds ago 
-    private const val GLOBAL_COOLDOWN_MS = 3000L
+    private const val REDUNDANCY_WINDOW_MS = 5000L      // 5s: Same ID within 5s = REINFORCE
+    private const val DUPLICATE_ID_THRESHOLD_MS = 30000L // 30s: Same ID 5s-30s = IGNORE
+    private const val GLOBAL_COOLDOWN_MS = 3000L        // 3s: Anti-Spam for different IDs
+
+    enum class Decision {
+        LAUNCH_NEW,    // First time seeing this ID. Start everything.
+        REINFORCE,     // Same ID, arrived via 2nd channel. Keep siren on.
+        IGNORE         // True spam or already handled duplicate.
+    }
 
     /**
-     * Checks if we should process this incident.
-     * Returns TRUE if it is NEW and SAFE to launch.
+     * Determines the action to take for an incoming incident.
      */
     @Synchronized
-    fun isNewIncident(incidentId: String?): Boolean {
+    fun checkIncident(incidentId: String?): Decision {
         if (incidentId.isNullOrEmpty()) {
-            Log.e(TAG, "⚠️ Blocked: Incoming Incident ID is NULL or Empty")
-            return false 
+            Log.e(TAG, "⚠️ Blocked: Incoming Incident ID is NULL")
+            return Decision.IGNORE
         }
 
         val currentTime = System.currentTimeMillis()
-        val timeSinceLastAlert = currentTime - lastProcessedTime
+        val lastSeenThisIncident = processedIncidents[incidentId]
+        val timeSinceGlobalAlert = currentTime - lastGlobalAlertTime
 
-        // CHECK 1: Is this the EXACT same ID as the last one?
-        if (incidentId == lastIncidentId) {
-            if (timeSinceLastAlert < DUPLICATE_ID_THRESHOLD_MS) {
-                Log.w(TAG, "🛑 DUPLICATE BLOCKED: Incident '$incidentId' was handled ${timeSinceLastAlert / 1000}s ago.")
-                return false
+        // CASE 1: We have seen this specific Incident ID before
+        if (lastSeenThisIncident != null) {
+            val timeSinceThisIncident = currentTime - lastSeenThisIncident
+
+            return when {
+                // Scenario: Socket at 0.5s, FCM at 1.0s. 
+                // Decision: REINFORCE (Don't block, just treat as backup)
+                timeSinceThisIncident < REDUNDANCY_WINDOW_MS -> {
+                    processedIncidents[incidentId] = currentTime // Update timer
+                    Log.d(TAG, "📢 REINFORCEMENT: Dual-channel signal for '$incidentId'")
+                    Decision.REINFORCE
+                }
+                
+                // Scenario: Same ID arrives again after 15 seconds.
+                // Decision: IGNORE (Already handled recently)
+                timeSinceThisIncident < DUPLICATE_ID_THRESHOLD_MS -> {
+                    Log.w(TAG, "🛑 DUPLICATE: Incident '$incidentId' handled ${timeSinceThisIncident / 1000}s ago.")
+                    Decision.IGNORE
+                }
+                
+                // Scenario: Same ID arrives after 30 seconds.
+                // Decision: LAUNCH_NEW (Treat as a re-escalation)
+                else -> {
+                    approveAlert(incidentId, currentTime)
+                    Decision.LAUNCH_NEW
+                }
             }
         }
 
-        // CHECK 2: Global Cooldown (Anti-Spam)
-        if (timeSinceLastAlert < GLOBAL_COOLDOWN_MS) {
-            Log.w(TAG, "🛑 SPAM BLOCKED: Waiting for global cooldown (${timeSinceLastAlert}ms since last alert).")
-            return false
+        // CASE 2: New Incident ID, but arriving too fast after a DIFFERENT ID
+        if (timeSinceGlobalAlert < GLOBAL_COOLDOWN_MS) {
+            Log.w(TAG, "🛑 SPAM BLOCKED: New ID '$incidentId' arrived too soon after another alert.")
+            return Decision.IGNORE
         }
 
-        // APPROVED
-        Log.d(TAG, "✅ ALERT APPROVED: ID=$incidentId. Time since last: ${timeSinceLastAlert}ms")
-        
-        lastIncidentId = incidentId
-        lastProcessedTime = currentTime
-        
-        return true
+        // CASE 3: Approved New Incident
+        approveAlert(incidentId, currentTime)
+        return Decision.LAUNCH_NEW
     }
-    
-    /**
-     * Call this when the user clicks "Stop" or "Dismiss" in the UI
-     * to allow the phone to receive a brand new alert immediately.
-     */
+
+    private fun approveAlert(id: String, time: Long) {
+        Log.d(TAG, "✅ ALERT APPROVED: ID=$id")
+        processedIncidents[id] = time
+        lastGlobalAlertTime = time
+        
+        // Clean up old entries (older than 30s) to save memory
+        processedIncidents.entries.removeIf { time - it.value > DUPLICATE_ID_THRESHOLD_MS }
+    }
+
     @Synchronized
     fun reset() {
-        lastIncidentId = null
-        lastProcessedTime = 0
-        Log.d(TAG, "🔄 Deduplicator Reset. Ready for new alerts.")
+        processedIncidents.clear()
+        lastGlobalAlertTime = 0
+        Log.d(TAG, "🔄 Deduplicator Reset.")
     }
 }

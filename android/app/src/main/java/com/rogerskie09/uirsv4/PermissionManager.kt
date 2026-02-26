@@ -25,84 +25,100 @@ object PermissionManager {
 
     private const val TAG = "PermissionManager"
 
+    // Comprehensive list of OEMs known for aggressive background killing
+    private val HIGH_RISK_MANUFACTURERS = listOf(
+        "samsung", "xiaomi", "redmi", "poco", "oppo", "vivo", "iqoo", 
+        "huawei", "honor", "tecno", "infinix", "realme", "oneplus", 
+        "asus", "transsion", "itel"
+    )
+
     /**
      * Generates a detailed "Health Report" for React Native.
+     * Guaranteed to never throw an exception.
      */
     fun checkVitalHealth(context: Context): WritableMap {
         val map = Arguments.createMap()
 
-        // --- 1. Standard Hardware-Aware Permissions ---
-        val permissionsToCheck = getRequiredPermissionsForDevice(context)
-        val missingRuntime = permissionsToCheck.filter {
-            try {
-                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-            } catch (e: Exception) { true }
-        }
-        val hasRuntime = missingRuntime.isEmpty()
-        map.putBoolean("runtimeGranted", hasRuntime)
-        
-        val missingArray = Arguments.createArray()
-        missingRuntime.forEach { missingArray.pushString(it) }
-        map.putArray("missingRuntimePermissions", missingArray)
+        try {
+            // --- 1. Standard Hardware-Aware Permissions ---
+            val permissionsToCheck = getRequiredPermissionsForDevice(context)
+            val missingRuntime = permissionsToCheck.filter { perm ->
+                try {
+                    ContextCompat.checkSelfPermission(context, perm) != PackageManager.PERMISSION_GRANTED
+                } catch (e: Exception) {
+                    true // If check fails, assume missing to be safe
+                }
+            }
+            val hasRuntime = missingRuntime.isEmpty()
+            map.putBoolean("runtimeGranted", hasRuntime)
+            
+            val missingArray = Arguments.createArray()
+            missingRuntime.forEach { missingArray.pushString(it) }
+            map.putArray("missingRuntimePermissions", missingArray)
 
-        // --- 2. Standard System Capabilities ---
-        val hasOverlay = if (Build.VERSION.SDK_INT >= 23) {
-            try { Settings.canDrawOverlays(context) } catch (e: Exception) { false }
-        } else true
-        map.putBoolean("overlayGranted", hasOverlay)
-
-        val hasBattery = try {
-            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-            if (Build.VERSION.SDK_INT >= 23) {
-                pm?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+            // --- 2. Standard System Capabilities ---
+            val hasOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try { Settings.canDrawOverlays(context) } catch (e: Exception) { false }
             } else true
-        } catch (e: Exception) { true }
-        map.putBoolean("batteryGranted", hasBattery)
+            map.putBoolean("overlayGranted", hasOverlay)
 
-        val hasFSI = if (Build.VERSION.SDK_INT >= 34) {
-            try {
-                context.getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() ?: true
+            val hasBattery = try {
+                val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    pm?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+                } else true
             } catch (e: Exception) { true }
-        } else true
-        map.putBoolean("fsiGranted", hasFSI)
+            map.putBoolean("batteryGranted", hasBattery)
 
-        val hasAlarm = if (Build.VERSION.SDK_INT >= 31) {
-            try {
-                context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() ?: true
-            } catch (e: Exception) { true }
-        } else true
-        map.putBoolean("alarmGranted", hasAlarm)
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
 
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-        val hasDND = if (Build.VERSION.SDK_INT >= 23) {
-            try { nm?.isNotificationPolicyAccessGranted ?: true } catch (e: Exception) { true }
-        } else true
-        map.putBoolean("dndGranted", hasDND)
-        
-        val notificationsEnabled = try { nm?.areNotificationsEnabled() ?: true } catch (e: Exception) { true }
-        map.putBoolean("notificationsEnabled", notificationsEnabled)
+            val hasFSI = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                try {
+                    nm?.canUseFullScreenIntent() ?: true
+                } catch (e: Exception) { true }
+            } else true
+            map.putBoolean("fsiGranted", hasFSI)
 
+            val hasAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                    am?.canScheduleExactAlarms() ?: true
+                } catch (e: Exception) { true }
+            } else true
+            map.putBoolean("alarmGranted", hasAlarm)
 
-        // --- 3. HIDDEN SETTINGS & RISK DETECTION ---
-        val hiddenRisks = detectHiddenRisks(context)
-        
-        // FIX: Extract values BEFORE putting map into container
-        val isHighRisk = hiddenRisks.getBoolean("isHighRiskDevice")
-        val autoStartGranted = hiddenRisks.getBoolean("miuiAutoStartGranted") // True for non-Xiaomi
-        val manualCheckRequired = hiddenRisks.getBoolean("manualCheckRequired") // True for Oppo/Vivo
-        
-        map.putMap("hiddenRisks", hiddenRisks)
+            val hasDND = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try { nm?.isNotificationPolicyAccessGranted ?: true } catch (e: Exception) { true }
+            } else true
+            map.putBoolean("dndGranted", hasDND)
+            
+            val notificationsEnabled = try { nm?.areNotificationsEnabled() ?: true } catch (e: Exception) { true }
+            map.putBoolean("notificationsEnabled", notificationsEnabled)
 
-        // --- 4. Overall Readiness Calculation ---
-        val isStandardReady = hasRuntime && hasOverlay && hasBattery && hasFSI && hasAlarm && hasDND && notificationsEnabled
-        
-        // Manufacturer Restriction Logic:
-        // 1. If it's Xiaomi and AutoStart is FALSE -> RESTRICTED.
-        // 2. If it's Oppo/Vivo (manualCheckRequired) -> We consider it "Potentially Restricted" but we don't block 'isRobust' 
-        //    because we can't know for sure. The UI should handle the 'manualCheckRequired' flag warning.
-        val isXiaomiRestricted = isHighRisk && !manualCheckRequired && !autoStartGranted
+            // --- 3. HIDDEN SETTINGS & RISK DETECTION ---
+            val hiddenRisks = detectHiddenRisks(context)
+            
+            val isHighRisk = hiddenRisks.getBoolean("isHighRiskDevice")
+            val autoStartGranted = hiddenRisks.getBoolean("miuiAutoStartGranted") 
+            val manualCheckRequired = hiddenRisks.getBoolean("manualCheckRequired") 
+            
+            map.putMap("hiddenRisks", hiddenRisks)
 
-        map.putBoolean("isRobust", isStandardReady && !isXiaomiRestricted)
+            // --- 4. Overall Readiness Calculation ---
+            val isStandardReady = hasRuntime && hasOverlay && hasBattery && hasFSI && hasAlarm && hasDND && notificationsEnabled
+            
+            // If it's Xiaomi and AutoStart is definitively FALSE -> RESTRICTED.
+            val isXiaomiRestricted = isHighRisk && !manualCheckRequired && !autoStartGranted
+
+            map.putBoolean("isRobust", isStandardReady && !isXiaomiRestricted)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Fatal error generating health report", e)
+            // Failsafe map to prevent React Native crash
+            map.putBoolean("isRobust", false)
+            map.putBoolean("runtimeGranted", false)
+            map.putArray("missingRuntimePermissions", Arguments.createArray())
+        }
 
         return map
     }
@@ -114,16 +130,8 @@ object PermissionManager {
         val map = Arguments.createMap()
         val manufacturer = Build.MANUFACTURER.lowercase()
         
-        // A. Identify High Risk Devices
-        val isHighRisk = manufacturer.contains("xiaomi") || 
-                         manufacturer.contains("oppo") || 
-                         manufacturer.contains("vivo") || 
-                         manufacturer.contains("huawei") ||
-                         manufacturer.contains("tecno") ||
-                         manufacturer.contains("infinix") ||
-                         manufacturer.contains("realme") ||
-                         manufacturer.contains("oneplus")
-                         
+        // A. Identify High Risk Devices (NOW INCLUDES SAMSUNG)
+        val isHighRisk = HIGH_RISK_MANUFACTURERS.any { manufacturer.contains(it) }
         map.putBoolean("isHighRiskDevice", isHighRisk)
 
         // B. Brand Specific Checks
@@ -139,7 +147,7 @@ object PermissionManager {
             map.putBoolean("manualCheckRequired", false)
             
         } else if (isHighRisk) {
-            // Oppo, Vivo, Realme, etc. DO NOT allow programmatic checking.
+            // Samsung, Oppo, Vivo, Realme, etc. DO NOT allow programmatic checking.
             // We must assume TRUE to avoid blocking code execution, but flag it for the UI.
             map.putBoolean("miuiAutoStartGranted", true) 
             map.putBoolean("miuiShowOnLockScreenGranted", true)
@@ -147,7 +155,7 @@ object PermissionManager {
             // CRITICAL: Tell UI to show "Check Settings" button because we are blind here
             map.putBoolean("manualCheckRequired", true)
         } else {
-            // Standard Android (Pixel, Moto, Samsung)
+            // Standard Android (Pixel, Moto, Nothing)
             map.putBoolean("miuiAutoStartGranted", true)
             map.putBoolean("miuiShowOnLockScreenGranted", true)
             map.putBoolean("manualCheckRequired", false)
@@ -157,12 +165,14 @@ object PermissionManager {
     }
 
     /**
-     * Reflection helper to check hidden AppOps.
+     * Reflection helper to check hidden AppOps (primarily for MIUI).
      * Returns TRUE if check fails to ensure "Fail Open" behavior.
      */
     private fun checkOp(context: Context, opCode: Int): Boolean {
         return try {
-            val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
+                ?: return true // Fail open if service is null
+
             val clazz = AppOpsManager::class.java
             val method: Method = clazz.getMethod(
                 "checkOpNoThrow", 
@@ -176,9 +186,10 @@ object PermissionManager {
                 Process.myUid(), 
                 context.packageName
             ) as Int
+            
             result == AppOpsManager.MODE_ALLOWED
         } catch (e: Exception) {
-            Log.w(TAG, "Reflection check failed for opCode $opCode", e)
+            Log.w(TAG, "Reflection check failed for opCode $opCode. Falling back to true.", e)
             true 
         }
     }
@@ -189,9 +200,11 @@ object PermissionManager {
      */
     fun isServiceLaunchSafe(context: Context): Boolean {
         try {
-            // 1. Hardware Permissions (Camera/Mic)
-            val hasCameraHardware = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
-            val hasMicHardware = context.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
+            val pm = context.packageManager
+            
+            // 1. Hardware Permissions (Camera/Mic) for Foreground Service Types
+            val hasCameraHardware = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+            val hasMicHardware = pm.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)
 
             val hasCameraPerm = if (hasCameraHardware) {
                 ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -201,10 +214,22 @@ object PermissionManager {
                 ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
             } else true 
             
-            if (!hasCameraPerm || !hasMicPerm) return false
+            if (!hasCameraPerm || !hasMicPerm) {
+                Log.e(TAG, "Missing Hardware Permissions for Foreground Service.")
+                return false
+            }
 
-            // 2. Android 14+ Background Launch Requirements
-            if (Build.VERSION.SDK_INT >= 34) {
+            // 2. Android 13+ Notification Permission Requirement
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val hasNotifications = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                if (!hasNotifications) {
+                    Log.e(TAG, "Missing POST_NOTIFICATIONS permission. FGS will fail.")
+                    return false
+                }
+            }
+
+            // 3. Android 14+ Background Launch Requirements
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 val hasOverlay = try { Settings.canDrawOverlays(context) } catch (e: Exception) { false }
                 
                 val hasFSI = try {
@@ -213,25 +238,35 @@ object PermissionManager {
                 
                 // On Android 14, you generally need EITHER Overlay permission OR Full Screen Intent permission
                 // to successfully interrupt the user or start an activity from background.
-                return hasOverlay || hasFSI
+                if (!hasOverlay && !hasFSI) {
+                    Log.e(TAG, "Missing Overlay AND Full Screen Intent. Cannot launch from background on Android 14.")
+                    return false
+                }
             }
 
             return true
 
         } catch (e: Exception) {
+            Log.e(TAG, "Exception during isServiceLaunchSafe check", e)
+            // Fail safely - return false so the service doesn't attempt to start and crash the app
             return false
         }
     }
 
+    /**
+     * Dynamically builds the list of required permissions based on OS level and Hardware.
+     */
     private fun getRequiredPermissionsForDevice(context: Context): List<String> {
         val perms = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
         val pm = context.packageManager
+        
         if (pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)) perms.add(Manifest.permission.CAMERA)
         if (pm.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)) perms.add(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        
         return perms
     }
 }

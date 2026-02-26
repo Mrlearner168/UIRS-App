@@ -317,9 +317,6 @@ export default function AddStationScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.header}>
-            <Text style={styles.headerTitle}>{t('managestations')}</Text>
-        </View>
 
         {/* Tab Switcher */}
         <View style={styles.tabContainer}>

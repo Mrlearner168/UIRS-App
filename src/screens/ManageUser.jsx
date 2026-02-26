@@ -7,12 +7,13 @@ import {
   Alert,
   Button,
   FlatList,
+  Linking,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import EncryptedStorage from 'react-native-encrypted-storage';
 
@@ -198,7 +199,6 @@ const UsersData = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>{t('manageusers')}</Text>
 
       <FlatList
         data={users}
@@ -214,6 +214,26 @@ const UsersData = ({ navigation }) => {
             <Text style={styles.userName}>
               {item.firstName} {item.lastName}
             </Text>
+            <TouchableOpacity
+              onPress={() =>
+                Linking.openURL(
+                  `mailto:${item.email}?subject=From UIRS App&body=I would like to get in touch with you regarding...`
+                )
+              }
+            >
+              <Text>
+                {t('email')}: {item.email}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => Linking.openURL(`tel:${item.phone}`)}
+            >
+              <Text>
+                {t('phone')}: {item.phone}
+              </Text>
+            </TouchableOpacity>
+
             <Text>{t('role')} {item.role}</Text>
               {(item.role === "responder_head" || item.role === "responder_personnel" ) && (
                 <Text>{t('stationid')}

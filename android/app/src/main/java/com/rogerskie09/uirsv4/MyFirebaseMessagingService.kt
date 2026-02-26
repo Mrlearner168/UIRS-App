@@ -65,17 +65,24 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             val body = remoteMessage.data["body"] ?: "Check the app for details"
 
             if (type == "emergency") {
-                // 🛑 START DEDUPLICATION LOGIC 🛑
+                // 🛑 NEW DEDUPLICATION LOGIC 🛑
                 val incidentId = remoteMessage.data["incident_id"] ?: remoteMessage.data["id"]
+                val decision = EventDeduplicator.checkIncident(incidentId)
 
-                if (EventDeduplicator.isNewIncident(incidentId)) {
-                    Log.d(TAG, "✅ Fresh FCM Alert! Starting Sequence.")
+                when (decision) {
+                    EventDeduplicator.Decision.LAUNCH_NEW -> {
+                        Log.d(TAG, "✅ Fresh FCM Alert! Starting Sequence for ID: $incidentId")
+                        processEmergencyFCM(title, body, remoteMessage.data, isReinforcement = false)
+                    }
                     
-                    // Attempt to start service with RETRY logic (Attempt 0)
-                    attemptToStartEmergencyService(title, body, remoteMessage.data, 0)
+                    EventDeduplicator.Decision.REINFORCE -> {
+                        Log.d(TAG, "📢 REINFORCE: Signal backup for ID: $incidentId (Socket likely already arrived)")
+                        processEmergencyFCM(title, body, remoteMessage.data, isReinforcement = true)
+                    }
                     
-                } else {
-                    Log.w(TAG, "🚫 Duplicate FCM Alert blocked.")
+                    EventDeduplicator.Decision.IGNORE -> {
+                        Log.w(TAG, "🚫 Duplicate FCM Alert blocked. (Handled within last 30s)")
+                    }
                 }
                 // 🛑 END DEDUPLICATION LOGIC 🛑
 
@@ -88,6 +95,22 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         } finally {
             if (wakeLock.isHeld) wakeLock.release()
         }
+    }
+    /**
+     * Prepares data and triggers the Emergency Service.
+     */
+    private fun processEmergencyFCM(
+        title: String, 
+        body: String, 
+        data: Map<String, String>, 
+        isReinforcement: Boolean
+    ) {
+        // We convert the map to a MutableMap so we can inject our reinforcement flag
+        val updatedData = data.toMutableMap()
+        updatedData["is_reinforcement"] = isReinforcement.toString()
+
+        // Call your existing robust starter with the new flag
+        attemptToStartEmergencyService(title, body, updatedData, 0)
     }
 
     // 🛑 ROBUST SERVICE STARTER WITH RETRY LOGIC 🛑

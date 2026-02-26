@@ -248,9 +248,6 @@ const RequestScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.heading}>{t('changerequest')}</Text>
-      </View>
 
       {renderStatusButtons()}
 

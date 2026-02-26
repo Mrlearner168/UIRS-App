@@ -225,9 +225,6 @@ const Graph = () => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.headerContainer}>
-        <Text style={styles.title}>Dashboard & Analytics</Text>
-      </View>
 
       {isLoading && !refreshing ? (
           <View style={styles.loadingContainer}>

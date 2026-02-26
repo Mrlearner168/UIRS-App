@@ -1263,6 +1263,13 @@ const ReportIncident = () => {
   
   return (
     <View style={{ flex: 1 }}>
+      <TouchableOpacity 
+        style={styles.stationButton}
+        onPress={() => navigation.navigate('StationModal')} // Replace with your function
+      >
+        <Text style={styles.stationButtonText}>Station Details</Text>
+      </TouchableOpacity>
+
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <Text style={styles.header}>{t('reportincident')}</Text>
 
@@ -1449,7 +1456,27 @@ const styles = StyleSheet.create({
   buttonContainer: { marginBottom: 8 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   permissionBox: { padding: 16, backgroundColor: '#fff', borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: '#f00' },
-  permissionText: { color: '#f00', fontWeight: 'bold', marginBottom: 8 }
+  permissionText: { color: '#f00', fontWeight: 'bold', marginBottom: 8 },
+  stationButton: {
+    position: 'absolute',
+    top: 10,            // Adjust this if it overlaps with your phone's status bar/notch
+    right: 20,          // Distance from the right edge
+    backgroundColor: '#007BFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    zIndex: 1000,       // Forces it to float above the ScrollView
+    elevation: 5,       // Shadow for Android
+    shadowColor: '#000',// Shadow for iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  stationButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  }
 });
 
 export default ReportIncident;

@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   
   // Header
   headerContainer: { padding: 22, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  heading: { fontSize: 24, fontWeight: "700", color: "#1F2937" },
+  heading: { fontSize: 24, fontWeight: "700", color: "#1F2937" , textAlign: 'center'  },
 
   // Loading & Empty
   center: { flex: 1, justifyContent: "center", alignItems: "center" },

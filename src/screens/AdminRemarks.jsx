@@ -353,9 +353,6 @@ export default function DoneIncidentsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-          <Text style={styles.headerTitle}>{t('doneincident')}</Text>
-      </View>
 
       <View style={styles.tabsContainer}>
         <TouchableOpacity

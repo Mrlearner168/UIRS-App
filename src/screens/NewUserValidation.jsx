@@ -295,9 +295,6 @@ const NewUserValidation = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.title}>{t('pendinguserver')}</Text>
-      </View>
 
       {loading && !refreshing ? (
         <View style={styles.centerLoading}>

@@ -105,6 +105,9 @@ class EmergencyAlertService : Service() {
         val title = intent?.getStringExtra("title") ?: "EMERGENCY ALERT"
         val body = intent?.getStringExtra("body") ?: "Immediate attention required"
 
+        // 🛑 NEW: Check if this is a backup signal (from FCM or Socket)
+        val isReinforcement = intent?.getStringExtra("is_reinforcement")?.toBoolean() ?: false
+
         // 1. START FOREGROUND IMMEDIATELY (Crucial for Android 12+)
         val notificationStarted = startForegroundNotification(title, body, intent)
         if (!notificationStarted) {
@@ -119,6 +122,7 @@ class EmergencyAlertService : Service() {
 
         // 3. Start Logic
         if (!isAlertActive) {
+            Log.d(TAG, "🔥 Starting Hardware Alert (Siren/Vibe/Flash)")
             isAlertActive = true
             
             // Steal Focus & Max Volume
@@ -134,6 +138,11 @@ class EmergencyAlertService : Service() {
 
             // Schedule Auto-Stop
             mainHandler.postDelayed(stopRunnable, MAX_DURATION_MS)
+            
+        } else if (isReinforcement) {
+            // 🛑 NEW: Do nothing here! 
+            // The activity and notification refreshed above, but we skip restarting the hardware.
+            Log.d(TAG, "📢 Reinforcement signal received. Hardware already active, skipping audio restart.")
         }
 
         return START_STICKY
@@ -258,48 +267,38 @@ class EmergencyAlertService : Service() {
                 .setAutoCancel(false)
                 .build()
 
-            // 4. ANDROID 14+ COMPATIBILITY
-            if (Build.VERSION.SDK_INT >= 34) {
-                // FIXED: Don't request CAMERA type if we don't have permission!
-                // This prevents SecurityException crash on Android 14.
-                var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK // Default safe type
-                
-                if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                    types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-                }
-
-                try {
-                    startForeground(999, notification, types)
-                } catch (e: Exception) {
-                    // Fallback if specific types fail
-                    Log.e(TAG, "Specific startForeground failed: ${e.message}. Trying generic.")
-                    startForeground(999, notification)
-                }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10-13
+            // 4. ANDROID 10+ / 14+ COMPATIBILITY
+            // 🚨 We only use MEDIA_PLAYBACK to keep the service alive for the siren.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     999, 
                     notification, 
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                 )
             } else {
                 startForeground(999, notification)
             }
             
-            Log.d(TAG, "✅ Foreground Notification Started")
+            Log.d(TAG, "✅ Foreground Notification Started successfully")
             return true
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to build notification: ${e.message}")
             
-            // 🛑 SAFETY NET: Satisfy Android's "Foreground Promise" to prevent RemoteServiceException crash
+            // 🛑 SAFETY NET: Satisfy Android's "Foreground Promise" to prevent crash
             try {
                 val fallbackNotification = NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("Emergency Alert (Error)")
-                    .setContentText("Critical alert error. Tap to open.")
+                    .setContentTitle("Emergency Alert")
+                    .setContentText("Critical alert in progress. Tap to open.")
                     .setSmallIcon(android.R.drawable.ic_dialog_alert) // Safe system icon
                     .build()
-                startForeground(999, fallbackNotification)
+                
+                // Fixed Fallback: Must ALSO include the service type for Android 10+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(999, fallbackNotification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                } else {
+                    startForeground(999, fallbackNotification)
+                }
             } catch (e2: Exception) {
                 Log.e(TAG, "❌ Even Fallback failed: ${e2.message}")
             }
@@ -368,8 +367,8 @@ class EmergencyAlertService : Service() {
 
     private fun toggleFlashlight(): Boolean {
         val id = cameraId ?: return false
+        
         return try {
-            // Camera check for Android M+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 isFlashOn = !isFlashOn
                 cameraManager.setTorchMode(id, isFlashOn)
@@ -377,8 +376,14 @@ class EmergencyAlertService : Service() {
             } else {
                 false
             }
+        } catch (e: android.hardware.camera2.CameraAccessException) {
+            // This happens normally if the user has the Camera app open, or during a video call.
+            Log.w(TAG, "⚠️ Camera hardware busy. Cannot toggle flash right now.")
+            isFlashOn = false 
+            false
         } catch (e: Exception) {
-            Log.e(TAG, "⚠️ Flashlight error: ${e.message}")
+            // Catching any other weird system crashes
+            Log.e(TAG, "❌ Unexpected Flashlight error: ${e.message}")
             isFlashOn = false 
             false
         }

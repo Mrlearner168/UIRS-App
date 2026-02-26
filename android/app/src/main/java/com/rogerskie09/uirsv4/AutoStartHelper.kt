@@ -115,9 +115,6 @@ object AutoStartHelper {
         openBatteryOptimizationSettings(context)
     }
 
-    /**
-    //  * 2. BATTERY: Request to Ignore Optimizations (System Dialog).
-     */
     fun requestIgnoreBatteryOptimizations(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
@@ -133,9 +130,6 @@ object AutoStartHelper {
         }
     }
 
-    /**
-     * 3. OVERLAYS: Open "Display over other apps".
-     */
     fun openDisplayOverlaysSettings(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
@@ -151,9 +145,6 @@ object AutoStartHelper {
         }
     }
 
-    /**
-     * 4. NOTIFICATIONS: Open App Notification Settings.
-     */
     fun openNotificationSettings(context: Context) {
         try {
             val intent = Intent().apply {
@@ -174,9 +165,6 @@ object AutoStartHelper {
         }
     }
 
-    /**
-     * 5. DO NOT DISTURB: Open DND Access Settings.
-     */
     fun openDoNotDisturbSettings(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
@@ -191,9 +179,6 @@ object AutoStartHelper {
         }
     }
 
-    /**
-     * 6. ALARMS: Open "Alarms & Reminders" Settings (Android 12+).
-     */
     fun openAlarmsAndRemindersSettings(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             try {
@@ -209,9 +194,6 @@ object AutoStartHelper {
         }
     }
 
-    /**
-     * 7. XIAOMI: Open Permissions Editor (For "Show on Lock Screen").
-     */
     fun openXiaomiPermissionEditor(context: Context) {
         try {
             val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
@@ -226,9 +208,6 @@ object AutoStartHelper {
         }
     }
 
-    /**
-     * 8. LOCATION: Open Location Settings.
-     */
     fun openLocationSettings(context: Context) {
         try {
             val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).apply {
@@ -240,9 +219,6 @@ object AutoStartHelper {
         }
     }
 
-    /**
-     * 9. FALLBACK: Open Standard App Details.
-     */
     fun openAppDetails(context: Context): Boolean {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -261,10 +237,6 @@ object AutoStartHelper {
             }
         }
     }
-
-    // =========================================================================================
-    // INTERNAL HELPERS
-    // =========================================================================================
 
     private fun openManufacturerSpecificSettings(context: Context): Boolean {
         val manufacturer = Build.MANUFACTURER.lowercase()
@@ -303,6 +275,11 @@ object AutoStartHelper {
     private fun getIntentsForManufacturer(manufacturer: String): List<Pair<String, String>> {
         val intents = mutableListOf<Pair<String, String>>()
         when {
+            "samsung" in manufacturer -> {
+                intents.add(Pair("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity"))
+                intents.add(Pair("com.samsung.android.sm", "com.samsung.android.sm.ui.battery.BatteryActivity"))
+                intents.add(Pair("com.samsung.android.sm_devicesecurity", "com.samsung.android.sm.ui.battery.BatteryActivity"))
+            }
             "xiaomi" in manufacturer || "redmi" in manufacturer || "poco" in manufacturer -> {
                 intents.add(Pair("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"))
                 intents.add(Pair("com.miui.securitycenter", "com.miui.powercenter.PowerSettings"))

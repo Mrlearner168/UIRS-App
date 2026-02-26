@@ -62,8 +62,6 @@ class EmergencyAlertActivity : AppCompatActivity() {
         // 4. UI MAPPING
         findViewById<TextView>(R.id.tvTitle)?.text = title
         findViewById<TextView>(R.id.tvBody)?.text = body
-        findViewById<TextView>(R.id.tvUserInfo)?.text = "Role: ${role.replace("_", " ").uppercase()}"
-        findViewById<TextView>(R.id.tvStationInfo)?.text = "Station ID: $stationId"
 
         val btnAccept = findViewById<Button>(R.id.btnAccept)
         val btnDecline = findViewById<Button>(R.id.btnDecline)
@@ -88,7 +86,7 @@ class EmergencyAlertActivity : AppCompatActivity() {
             // Personnel Logic: Show only "STOP ALARM"
             layoutHeadActions?.visibility = View.GONE
             btnStopAlert?.visibility = View.VISIBLE
-            btnStopAlert?.text = "I AM SAFE / STOP ALARM"
+            btnStopAlert?.text = "Im Informed - Stop Alert"
             etReason.visibility = View.GONE
         }
 
@@ -173,7 +171,8 @@ class EmergencyAlertActivity : AppCompatActivity() {
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread { showResponseDialog("Connection Failed", e.message ?: "Unknown Error", false) }
+                // Now it has: Title (String), Message (String), and isSuccess (Boolean)
+                runOnUiThread { showResponseDialog("Connection Failed", "Check your internet and try again.", false) }
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -189,7 +188,7 @@ class EmergencyAlertActivity : AppCompatActivity() {
                             finish() // If declined, just close app
                         }
                     } else {
-                        showResponseDialog("Error", "Failed to update status: ${response.code}", false)
+                        showResponseDialog("Error", "Failed to update status", false)
                     }
                 }
             }

@@ -98,7 +98,7 @@
             android:name="com.rogerskie09.uirsv4.EmergencyAlertService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="camera|mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback" />
         <!-- 
              Your Custom FCM Service 
              Using full package name to be 100% sure it's found.

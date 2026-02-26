@@ -71,6 +71,7 @@ const ProfileScreen = ({ navigation }) => {
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
   const [updateTarget, setUpdateTarget] = useState('email'); // or 'phone'
   const [language, setLanguage] = useState('en');
+  const [is_head, setIs_Head] = useState(false);
 
   const { t, i18n } = useTranslation();
   const { logout } = useContext(AuthContext);
@@ -153,6 +154,7 @@ const ProfileScreen = ({ navigation }) => {
         setRoleStatus(user.role_status || '');
         setVerifiedEmail(user.email || '');
         setVerifiedPhone(user.phone || '');
+        setIs_Head(user.is_head || false);
         return;
       }
 
@@ -173,8 +175,10 @@ const ProfileScreen = ({ navigation }) => {
       setRoleStatus(user.role_status || '');
       setVerifiedEmail(user.email || '');
       setVerifiedPhone(user.phone || '');
+      setIs_Head(user.is_head || false);
 
       await EncryptedStorage.setItem("cached_profile", JSON.stringify(user));
+      //console.log("Profile data fetched and cached successfully", user);
     } catch (error) {
       console.log("fetchUserData error:", error);
       if (isOnline) {
@@ -610,6 +614,15 @@ const ProfileScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.formContainer}>
+          <Text style={styles.roleLabel}>Role </Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>{role}</Text>
+            {role === 'responder_personnel' && is_head && (
+              <View style={styles.headBadge}>
+                <Text style={styles.headText}>Recieving Alerts</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.label}>{t('firstname')}</Text>
           <TextInput style={styles.input} value={firstName} onChangeText={setFirstName} editable={false} />
 
@@ -977,6 +990,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     height: 50
   },
+  roleLabel: {
+    fontSize: 14,
+    color: '#000000',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  headBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  headText: {
+    color: '#D97706',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  
   passwordInput: { flex: 1, color: '#000' },
   eyeIcon: { padding: 5 },
   
@@ -989,6 +1020,27 @@ const styles = StyleSheet.create({
   criteriaText: { fontSize: 12, marginBottom: 2 },
   metCriteria: { color: 'green' },
   unmetCriteria: { color: '#999' },
+
+  roleLabel: {
+    fontSize: 14,
+    color: '#6B7280', // soft gray
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+
+  roleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EEF2FF', // soft indigo background
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  roleText: {
+    color: '#4F46E5', // indigo text
+    fontWeight: '600',
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
 
   logoutButton: { marginTop: 30, padding: 15, backgroundColor: '#dc3545', borderRadius: 25, alignItems: 'center' },
   logoutButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },

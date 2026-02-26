@@ -160,33 +160,38 @@ class SocketService : Service() {
             Log.d(TAG, "📦 Processing Payload: $json")
 
             // 2. Deduplication check
-            if (EventDeduplicator.isNewIncident(incidentId)) {
-                Log.i(TAG, "✅ Deduplication Passed. Preparing to launch Emergency Service...")
+            val decision = EventDeduplicator.checkIncident(incidentId)
 
-                val title = "🚨 ${json.optString("type", "EMERGENCY").uppercase()} ALERT"
-                val body = "Location: ${json.optString("location", "Unknown Location")}"
-
-                // 3. Convert JSON to a Map for the attempt function
-                val dataMap = mutableMapOf<String, String>()
-                val keys = json.keys()
-                while (keys.hasNext()) {
-                    val key = keys.next()
-                    dataMap[key] = json.optString(key)
-                }
-
-                // 4. Trigger the Robust Starter
-                attemptToStartEmergencyService(title, body, dataMap, 0)
-
-            } else {
+            if (decision == EventDeduplicator.Decision.IGNORE) {
                 Log.w(TAG, "⛔ Deduplication Failed: Duplicate Alert Ignored (ID: $incidentId)")
+                return // Stop here!
             }
+
+            Log.i(TAG, "✅ Deduplication Passed (${decision.name}). Preparing to launch Emergency Service...")
+
+            val title = "🚨 ${json.optString("type", "EMERGENCY").uppercase()} ALERT"
+            val body = "Location: ${json.optString("location", "Unknown Location")}"
+
+            // 3. Convert JSON to a Map for the attempt function
+            val dataMap = mutableMapOf<String, String>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                dataMap[key] = json.optString(key)
+            }
+
+            // 🛑 NEW: Inject the reinforcement flag!
+            // If the decision was REINFORCE, this will be "true". Otherwise, "false".
+            dataMap["is_reinforcement"] = (decision == EventDeduplicator.Decision.REINFORCE).toString()
+
+            // 4. Trigger the Robust Starter
+            attemptToStartEmergencyService(title, body, dataMap, 0)
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error processing alert: ${e.message}")
         }
     }
 
-    
     // 🛑 ROBUST SERVICE STARTER WITH RETRY LOGIC 🛑
     private fun attemptToStartEmergencyService(
         title: String, 

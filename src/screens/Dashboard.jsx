@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   Linking,
   RefreshControl,
   StyleSheet,
@@ -29,7 +30,13 @@ const UserListReports = () => {
   const [incidents, setIncidents] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Search and Suggestions State
   const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -37,6 +44,7 @@ const UserListReports = () => {
   const [isOnline, setIsOnline] = useState(true);
   const [imageLoadingState, setImageLoadingState] = useState({});
   const [fullImageViewerVisible, setFullImageViewerVisible] = useState(false);
+  
   const navigation = useNavigation();
   const { authData } = useContext(AuthContext);
   const { t } = useTranslation();
@@ -44,7 +52,64 @@ const UserListReports = () => {
   const fetchAbortController = useRef(new AbortController());
   const fetchInProgressRef = useRef(false);
 
+  // Auto-suggestion logic spanning all data
+  const handleSearchChange = (text) => {
+    setSearchQuery(text);
+    if (text.trim().length > 0) {
+      const textLower = text.toLowerCase().trim();
+      const newSuggestions = new Set();
+      
+      incidents.forEach((incident) => {
+        // Collect exact matches for shorter fields
+        const exactFields = [
+          incident.incidentType,
+          incident.subType,
+          incident.processed_location,
+          incident.readableLocation,
+          incident.contactInfo,
+          incident.status
+        ];
 
+        exactFields.forEach(field => {
+          if (field && typeof field === 'string' && field.toLowerCase().includes(textLower)) {
+            newSuggestions.add(field);
+          }
+        });
+
+        // For description, include it but truncate if it's too long so the UI stays clean
+        if (incident.incidentDescription && typeof incident.incidentDescription === 'string' && incident.incidentDescription.toLowerCase().includes(textLower)) {
+          let desc = incident.incidentDescription;
+          if (desc.length > 40) {
+            desc = desc.substring(0, 40) + '...';
+          }
+          newSuggestions.add(desc);
+        }
+      });
+
+      // Filter out any empty items and limit to top 6 suggestions
+      const suggestionsArray = Array.from(newSuggestions).filter(Boolean).slice(0, 6); 
+      setSuggestions(suggestionsArray);
+      setShowSuggestions(suggestionsArray.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSuggestionSelect = (suggestion) => {
+    // If the suggestion ends with '...', it was truncated. Strip it before setting query
+    const query = suggestion.endsWith('...') ? suggestion.slice(0, -3) : suggestion;
+    setSearchQuery(query);
+    setShowSuggestions(false);
+    Keyboard.dismiss();
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    Keyboard.dismiss();
+  };
 
   // Image loading and error handling
   const handleImageLoad = useCallback((uri) => {
@@ -254,6 +319,7 @@ const UserListReports = () => {
       Alert.alert("Error", "An error occurred");
     }
   };
+
   const removeReport = async (reportId) => {
     console.log('[RemoveReport] Triggered', { reportId });
     if (!reportId) {
@@ -328,16 +394,23 @@ const UserListReports = () => {
       ]
     );
   };
-  console.log("Rendering UserListReports with incidents count:", JSON.stringify(incidents, null, 2));
+  
+  // Updated filteredIncidents to check all data points
   const filteredIncidents = incidents
     .filter((incident) => {
       if (!incident) return false;
-      const searchLower = (searchQuery || "").toLowerCase();
+      const searchLower = (searchQuery || "").toLowerCase().trim();
+      if (!searchLower) return true; // Show all if no search query
+
       return (
         (incident.incidentType?.toLowerCase?.() || "").includes(searchLower) ||
+        (incident.subType?.toLowerCase?.() || "").includes(searchLower) ||
         (incident.location?.toLowerCase?.() || "").includes(searchLower) ||
+        (incident.readableLocation?.toLowerCase?.() || "").includes(searchLower) ||
+        (incident.processed_location?.toLowerCase?.() || "").includes(searchLower) ||
         (incident.incidentDescription?.toLowerCase?.() || "").includes(searchLower) ||
-        (incident.contactInfo?.toLowerCase?.() || "").includes(searchLower)
+        (incident.contactInfo?.toLowerCase?.() || "").includes(searchLower) ||
+        (incident.status?.toLowerCase?.() || "").includes(searchLower)
       );
     })
     .sort((b, a) => {
@@ -357,26 +430,65 @@ const UserListReports = () => {
     };
   }, []);
   
-  console.log("rendering data " , JSON.stringify(incidents, null, 2));
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity 
+      activeOpacity={1} 
+      style={styles.container} 
+      onPress={() => {
+        setShowSuggestions(false);
+        Keyboard.dismiss();
+      }}
+    >
       <Text style={styles.heading}>
         {t('yourreports')}{" "}
         <Icon name={isOnline ? 'wifi' : 'wifi-off'} size={20} color={isOnline ? 'green' : 'red'} />
         {isOnline ? " Online" : " Offline"}
       </Text>
 
-      <TextInput
-        style={styles.searchInput}
-        placeholder={t('search')}
-        placeholderTextColor={"#888"}
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
+      {/* Beautiful Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={[styles.searchBarWrapper, isSearchFocused && styles.searchBarFocused]}>
+          <Icon name="magnify" size={24} color={isSearchFocused ? "#007BFF" : "#888"} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={t('search') || "Search reports..."}
+            placeholderTextColor={"#aaa"}
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            onFocus={() => {
+              setIsSearchFocused(true);
+              if (searchQuery.length > 0 && suggestions.length > 0) {
+                setShowSuggestions(true);
+              }
+            }}
+            onBlur={() => setIsSearchFocused(false)}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+              <Icon name="close-circle" size={20} color="#bbb" />
+            </TouchableOpacity>
+          )}
+        </View>
 
+        {showSuggestions && suggestions.length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            {suggestions.map((item, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={[styles.suggestionItem, index === suggestions.length - 1 && styles.suggestionItemLast]} 
+                onPress={() => handleSuggestionSelect(item)}
+              >
+                <Icon name="magnify" size={16} color="#aaa" style={styles.suggestionIcon} />
+                <Text style={styles.suggestionText} numberOfLines={1}>{item}</Text>
+                <Icon name="arrow-top-left" size={16} color="#ddd" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
 
-      {!isOnline && <Text style={{ textAlign: "center", color: "red" }}>{t('offline')}(media unavailable)</Text>}
+      {!isOnline && <Text style={{ textAlign: "center", color: "red", marginTop: 5 }}>{t('offline')}(media unavailable)</Text>}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -388,7 +500,9 @@ const UserListReports = () => {
       ) : (
         <FlatList
           data={filteredIncidents}
+          keyboardShouldPersistTaps="handled" // Allows tapping list items while keyboard is open
           keyExtractor={(item, index) => item?.id?.toString() || index.toString()}
+          contentContainerStyle={{ paddingBottom: 20 }}
           renderItem={({ item }) => {
             if (!item) return null;
             return (
@@ -424,6 +538,8 @@ const UserListReports = () => {
                     })()}
                   </Text>
                 )}
+                
+                {/* Reverted original tracking button logic */}
                 {(item.status !== "done" && item.status !== "cancelled" && item.is_deleted === false) && (
                   <TouchableOpacity
                     style={styles.trackButton}
@@ -533,7 +649,6 @@ const UserListReports = () => {
                 <TouchableOpacity
                   style={[styles.button, { backgroundColor: 'red', marginLeft: 10 }]}
                   onPress={() => {
-                    console.log('[RemoveReport] Remove button pressed', { reportId: item.report_id, status: item.status });
                     removeReport(item.report_id);
                   }}
                 >
@@ -563,43 +678,115 @@ const UserListReports = () => {
           </View>
         )}
       />
-    </View>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 14 },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 20, marginTop: 20, textAlign: "center" },
-  noReportsText: { textAlign: "center", marginTop: 30, fontSize: 20 },
+  container: { flex: 1, padding: 14, backgroundColor: '#f2f2f2' },
+  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 15, marginTop: 20, textAlign: "center", color: '#333' },
+  noReportsText: { textAlign: "center", marginTop: 30, fontSize: 18, color: '#666' },
   button: { padding: 10, borderRadius: 12, marginTop: 10 },
   buttonText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
-  searchInput: {
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
-    height: 40,
-    borderColor: "gray",
-    borderWidth: 1,
-    marginBottom: 10,
-    marginLeft: 10,
-    marginRight: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    backgroundColor: "#fff",
-    color: "#000",
+  
+  // -- Beautiful Search Bar Styles --
+  searchContainer: {
+    zIndex: 100, // Important so suggestions render over flatlist
+    marginBottom: 15,
+    marginHorizontal: 4,
+    position: 'relative',
   },
+  searchBarWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    height: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4, // Android shadow
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  searchBarFocused: {
+    borderColor: '#007BFF',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    height: '100%',
+  },
+  clearButton: {
+    padding: 5,
+    marginLeft: 5,
+  },
+  suggestionsContainer: {
+    position: 'absolute',
+    top: 58, // positioned cleanly below the search bar
+    left: 0,
+    right: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 1000,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f4f4f4',
+  },
+  suggestionItemLast: {
+    borderBottomWidth: 0, // Remove line for last item
+  },
+  suggestionIcon: {
+    marginRight: 12,
+  },
+  suggestionText: {
+    fontSize: 15,
+    color: '#444',
+    flex: 1,
+    marginRight: 10,
+  },
+  // -- End Search Bar Styles --
+
   card: {
-    backgroundColor: "#f9f9f9",
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
+    backgroundColor: "#ffffff",
+    padding: 18,
+    borderRadius: 15,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   mediaContainer: { 
     marginVertical: 15,
-    backgroundColor: "#fafafa",
+    backgroundColor: "#f9f9f9",
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e8e8e8"
+    borderColor: "#eee"
   },
   mediaTitle: {
     fontSize: 16,
@@ -617,8 +804,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#e8e8e8",
-    borderWidth: 2,
-    borderColor: "#d0d0d0"
+    borderWidth: 1,
+    borderColor: "#e0e0e0"
   },
   imageErrorWrapper: {
     borderColor: "#ff6b6b",
@@ -677,7 +864,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8f9fa"
+    backgroundColor: "transparent"
   },
   loadingText: {
     marginTop: 10,
@@ -685,16 +872,16 @@ const styles = StyleSheet.create({
     color: "#007BFF",
     fontWeight: "600"
   },
-  locationText: { color: "blue", textDecorationLine: "underline" },
-  trackButton: { backgroundColor: "#007BFF", padding: 10, borderRadius: 5, marginTop: 10 },
-  trackButtonText: { color: "#fff", textAlign: "center", fontWeight: "bold" },
+  locationText: { color: "#007BFF", textDecorationLine: "underline", marginVertical: 4 },
+  trackButton: { backgroundColor: "#007BFF", padding: 12, borderRadius: 8, marginTop: 12 },
+  trackButtonText: { color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 15 },
   ongoingNoticeBox: {
     backgroundColor: '#FFF4E5',
     borderLeftWidth: 5,
     borderLeftColor: '#FFA500',
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
-    marginTop: 8,
+    marginTop: 10,
   },
   ongoingNoticeTitle: {
     fontSize: 16,
@@ -703,31 +890,31 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   doneNoticeBox: {
-    backgroundColor: '#FFF4E5',
+    backgroundColor: '#f0fdf4',
     borderLeftWidth: 5,
-    borderLeftColor: '#5cee49ff',
-    padding: 10,
+    borderLeftColor: '#22ec29',
+    padding: 12,
     borderRadius: 8,
-    marginTop: 8,
+    marginTop: 10,
   },
   doneNoticeTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#22ec29ff',
+    color: '#22ec29',
     marginBottom: 4,
   },
   cancelNoticeBox: {
-    backgroundColor: '#FFF4E5',
+    backgroundColor: '#fef2f2',
     borderLeftWidth: 5,
-    borderLeftColor: '#e10d0dff',
-    padding: 10,
+    borderLeftColor: '#e10d0d',
+    padding: 12,
     borderRadius: 8,
-    marginTop: 8,
+    marginTop: 10,
   },
   cancelNoticeTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'hsla(0, 88%, 44%, 1.00)',
+    color: '#e10d0d',
     marginBottom: 4,
   },
   ongoingNoticeText: {
@@ -735,7 +922,11 @@ const styles = StyleSheet.create({
     color: '#555',
     lineHeight: 20,
   },
-
+  date: {
+    color: '#666',
+    marginTop: 4,
+    fontSize: 13,
+  }
 });
 
 export default UserListReports;
