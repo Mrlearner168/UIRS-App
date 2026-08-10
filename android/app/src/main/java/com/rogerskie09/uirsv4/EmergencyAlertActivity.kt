@@ -23,8 +23,9 @@ import java.util.concurrent.TimeUnit
 class EmergencyAlertActivity : AppCompatActivity() {
 
     private val TAG = "EmergencyActivity_DEBUG"
-    private val SERVER_URL = "https://uirs.duckdns.org" // Ensure this is correct
-    
+    //private val SERVER_URL = "https://uirs.duckdns.org" // Ensure this is correct
+    private val SERVER_URL = "http://192.168.254.146:5000"
+    //private val SERVER_URL = "https://quenchless-unshirking-leonora.ngrok-free.dev" // For testing with ngrok
     // Add timeouts to handle bad network conditions during emergencies
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -50,12 +51,23 @@ class EmergencyAlertActivity : AppCompatActivity() {
 
         // 3. AUTH & ROLE EXTRACTION
         val sharedPref = getSharedPreferences("MyAppData", Context.MODE_PRIVATE)
+
+        Log.d(TAG, "========== PREFS ==========")
+        sharedPref.all.forEach { (k, v) ->
+            Log.d(TAG, "$k = $v")
+        }
+        Log.d(TAG, "===========================")
+        
         val token = sharedPref.getString("token", "") ?: ""
         val stationId = sharedPref.getString("stationId", "") ?: ""
         val role = sharedPref.getString("role", "") ?: ""
         
         val isHeadStr = sharedPref.getString("isHead", "false") ?: "false"
         val isHead = isHeadStr.equals("true", ignoreCase = true)
+        
+        Log.d(TAG, "role=$role")
+        Log.d(TAG, "stationId=$stationId")
+        Log.d(TAG, "isHead=$isHead")
 
         Log.d(TAG, "🔍 Context - Role: $role, isHead: $isHead, Incident ID: $incidentId")
 

@@ -13,16 +13,153 @@ import {
 } from "react-native";
 import EncryptedStorage from "react-native-encrypted-storage";
 
+// ==========================================
+// 1. Reusable UI Components
+// ==========================================
+
+const StatusBadge = ({ status }) => {
+  const normalizedStatus = status?.toLowerCase() || "pending";
+  let backgroundColor = "#6B7280"; // Gray (Unknown)
+  let textColor = "#FFFFFF";
+  let label = "Unknown";
+
+  if (normalizedStatus === "accepted") {
+    backgroundColor = "#10B981"; // Emerald Green
+    label = "Accepted";
+  } else if (normalizedStatus === "declined") {
+    backgroundColor = "#EF4444"; // Red
+    label = "Declined";
+  } else if (normalizedStatus === "pending" || normalizedStatus === "") {
+    backgroundColor = "#F59E0B"; // Orange
+    label = "Pending";
+  }
+
+  return (
+    <View style={[styles.badge, { backgroundColor }]}>
+      <Text style={[styles.badgeText, { color: textColor }]}>{label}</Text>
+    </View>
+  );
+};
+
+const StationCard = ({ item, isOwnStation, canManageStation, onAccept, onDeclinePress }) => {
+  const { t } = useTranslation();
+  const status = item.acceptDecline?.toLowerCase() || "pending";
+  const isAccepted = status === "accepted";
+  const isDeclined = status === "declined";
+  const isPending = status === "pending" || status === "";
+
+  return (
+    <View style={[styles.card, isOwnStation && styles.ownStationCard]}>
+      {/* Header: Station Name & Status */}
+      <View style={styles.cardHeader}>
+        <View style={styles.stationTitleContainer}>
+          <Text style={styles.stationIcon}>🏢</Text>
+          <View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={styles.stationName} numberOfLines={1}>
+                {item.station_name}
+              </Text>
+            </View>
+            {isOwnStation && (
+              <View style={styles.yourStationTag}>
+                <Text style={styles.yourStationText}>{t("your_station") || "Your Station"}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        <StatusBadge status={status} />
+      </View>
+
+      {/* Body: Address */}
+      <View style={styles.cardBody}>
+        <Text style={styles.addressLabel}>Address:</Text>
+        <Text style={styles.addressText}>{item.address}</Text>
+      </View>
+
+      {/* Inline Remarks (Visible to everyone if declined) */}
+      {isDeclined && item.remarks && (
+        <View style={styles.remarksBox}>
+          <Text style={styles.remarksTitle}>Decline Reason:</Text>
+          <Text style={styles.remarksText}>{item.remarks}</Text>
+        </View>
+      )}
+
+      {/* Action Buttons (Strictly for Own Station & Authorized Roles) */}
+      {canManageStation && (
+        <View style={styles.actionContainer}>
+          {(isPending || isDeclined) && (
+            <TouchableOpacity
+              style={[styles.btn, styles.btnAccept]}
+              onPress={() => onAccept(item.station_id)}
+            >
+              <Text style={styles.btnText}>Accept Dispatch</Text>
+            </TouchableOpacity>
+          )}
+
+          {(isPending || isAccepted) && (
+            <TouchableOpacity
+              style={[styles.btn, styles.btnDecline]}
+              onPress={() => onDeclinePress(item.station_id)}
+            >
+              <Text style={styles.btnText}>Decline</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+};
+
+const DeclineModal = ({ visible, onClose, onSubmit, remarks, setRemarks }) => {
+  const { t } = useTranslation();
+
+  return (
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Decline Dispatch</Text>
+          <Text style={styles.modalSubtitle}>Please provide a mandatory reason for declining.</Text>
+          
+          <TextInput
+            style={styles.textInput}
+            placeholder="e.g. Currently responding to another emergency..."
+            placeholderTextColor="#9CA3AF"
+            value={remarks}
+            onChangeText={setRemarks}
+            multiline
+            textAlignVertical="top"
+          />
+
+          <View style={styles.modalActionRow}>
+            <TouchableOpacity style={[styles.btn, styles.btnCancel, { flex: 1 }]} onPress={onClose}>
+              <Text style={styles.btnTextCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btn, styles.btnDecline, { flex: 1, marginLeft: 10 }]} onPress={onSubmit}>
+              <Text style={styles.btnText}>Submit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ==========================================
+// 2. Main Component
+// ==========================================
+
 const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData }) => {
-  const [selectedRemarks, setSelectedRemarks] = useState("");
-  const [remarksVisible, setRemarksVisible] = useState(false);
-  const [declineModalVisible, setDeclineModalVisible] = useState(false);
-  const [currentStationId, setCurrentStationId] = useState(null);
   const [userRole, setUserRole] = useState("");
   const [isHead, setIsHead] = useState(false);
   const [userStationId, setUserStationId] = useState(null);
+  
+  // Decline Flow State
+  const [declineModalVisible, setDeclineModalVisible] = useState(false);
+  const [currentStationId, setCurrentStationId] = useState(null);
+  const [declineRemarks, setDeclineRemarks] = useState("");
+
   const { t } = useTranslation();
-  //console.log("incidentId:", incidentId);
+
   useEffect(() => {
     const fetchUser = async () => {
       const role = await EncryptedStorage.getItem("role");
@@ -30,7 +167,7 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
       const station = await EncryptedStorage.getItem("station_id");
       setUserRole(role);
       setIsHead(head === "true");
-      setUserStationId(Number(station))
+      setUserStationId(Number(station));
     };
     fetchUser();
   }, []);
@@ -38,7 +175,6 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
   const handleStatusChange = async (stationId, newStatus, remarksText = "") => {
     try {
       const token = await EncryptedStorage.getItem("token");
-      console.log(`Updating status for station ID ${stationId} to ${newStatus} with remarks: ${remarksText}`);
       const response = await fetch(`${SERVER_URL}/incident/${incidentId}/station/${stationId}/status`, {
         method: "PUT",
         headers: {
@@ -47,348 +183,322 @@ const RespondersModal = ({ visible, onClose, responders, incidentId, refreshData
         },
         body: JSON.stringify({ acceptDecline: newStatus, remarks: remarksText }),
       });
-      const data = await response.json();
+      
       if (response.ok) {
         refreshData();
-        Alert.alert(
-          "Success",
-          t('resupdated'),
-          [{ text: "OK", onPress: onClose }],
-          { cancelable: true }
-        );
-
+        Alert.alert("Status Updated", `Station dispatch has been marked as ${newStatus}.`);
       } else {
-        console.log(data.error);
+        const data = await response.json();
+        Alert.alert("Error", data.error || "Failed to update status.");
       }
     } catch (error) {
-      console.log(error);
+      Alert.alert("Network Error", "Could not reach the server.");
     }
   };
 
-  const handleDeclinePress = (stationId) => {
+  const onAccept = (stationId) => {
+    handleStatusChange(stationId, "accepted", "");
+  };
+
+  const onDeclinePress = (stationId) => {
     setCurrentStationId(stationId);
-    setSelectedRemarks("");
+    setDeclineRemarks("");
     setDeclineModalVisible(true);
   };
 
   const submitDecline = () => {
-    if (!selectedRemarks || selectedRemarks.trim() === "") {
-      Alert.alert("Error", "Remarks cannot be empty");
+    if (!declineRemarks || declineRemarks.trim() === "") {
+      Alert.alert("Required", "You must provide a reason for declining.");
       return;
     }
-    handleStatusChange(currentStationId, "decline", selectedRemarks);
+    handleStatusChange(currentStationId, "declined", declineRemarks.trim());
     setDeclineModalVisible(false);
-  };
-
-  const renderStatus = (status) => {
-    let color = "#9E9E9E";
-    if (status === "accepted") color = "#4CAF50";
-    if (status === "declined") color = "#F44336";
-    return (
-      <View style={[styles.statusTag, { backgroundColor: color }]}>
-        <Text style={styles.statusText}>{status}</Text>
-      </View>
-    );
-  };
-
-  const openRemarks = (remarks) => {
-    setSelectedRemarks(remarks || "No remarks available");
-    setRemarksVisible(true);
-  };
-  const renderItem = ({ item }) => {
-      console.log("station name" , item.station_name);
-      const canChangeStatus =
-      item.station_id === userStationId &&
-      (userRole === "responder_head" || (userRole === "responder_personnel" && isHead));
-      //console.log(`Rendering item for station ID ${item.station_id}: canChangeStatus = ${canChangeStatus}`);
-      //console.log("station id ", item.station_id, " user station id ", userStationId);
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardRow}>
-          <Text style={styles.name}>{item.station_name}</Text>
-          {renderStatus(item.acceptDecline)}
-        </View>
-        <Text style={styles.detail}>{item.address}</Text>
-        {item.acceptDecline === "declined" &&(
-          <TouchableOpacity>
-            <View style={styles.doneNoticeBox}>
-              <Text style={styles.doneNoticeTitle}>Your Station    [Declined]</Text>
-              <Text style={styles.ongoingNoticeText}>
-               {t("acceptstat")} "{item.acceptDecline}"
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        {item.acceptDecline === "accepted" &&(
-          <TouchableOpacity>
-            <View style={styles.doneNoticeBox}>
-              <Text style={styles.doneNoticeTitle}>Your Station    [Accepted]</Text>
-              <Text style={styles.ongoingNoticeText}>
-                {t('changestat')} "{item.acceptDecline}"
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        {item.acceptDecline === "declined" && (
-          <TouchableOpacity
-            style={styles.remarksButton}
-            onPress={() => openRemarks(item.remarks)}
-          > 
-            <Text style={styles.remarksButtonText}>{t('viewremarks')}</Text>
-          </TouchableOpacity>
-        )}
-        {canChangeStatus && (
-          <View style={styles.buttonRow}>
-            {item.acceptDecline==="declined" &&(
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#4CAF50" }]}
-                onPress={() => handleStatusChange(item.station_id, "accepted")}
-              >
-                <Text style={styles.actionText}>{t('acceptrequest')}</Text>
-              </TouchableOpacity>
-            )}
-            {item.acceptDecline === "accepted" &&(
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#F44336" }]}
-                onPress={() => handleDeclinePress(item.station_id)}
-              >
-                <Text style={styles.actionText}>{t('declinerequest')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
-    );
   };
 
   return (
     <>
-      {/* Main Responders Modal */}
-      <Modal
-        animationType="slide"
-        transparent
-        visible={visible}
-        onRequestClose={onClose}
-      >
+      <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
         <View style={styles.overlay}>
-          <View style={styles.container}>
-            <Text style={styles.title}>{t('respoderstations')}</Text>
+          <View style={styles.mainContainer}>
+            
+            <View style={styles.header}>
+              <Text style={styles.title}>Dispatch Dashboard</Text>
+              <Text style={styles.subtitle}>Track responder station statuses</Text>
+            </View>
+
             <FlatList
               data={responders}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderItem}
+              keyExtractor={(item) => item.station_id.toString()}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => {
+                const isOwnStation = item.station_id === userStationId;
+                const canManageStation = isOwnStation && (userRole === "responder_head" || (userRole === "responder_personnel" && isHead));
+                
+                return (
+                  <StationCard 
+                    item={item} 
+                    isOwnStation={isOwnStation} 
+                    canManageStation={canManageStation}
+                    onAccept={onAccept}
+                    onDeclinePress={onDeclinePress}
+                  />
+                );
+              }}
               ListEmptyComponent={
-                <Text style={styles.empty}>{t('noresponders')}</Text>
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>{t('noresponders') || "No stations assigned to this incident."}</Text>
+                </View>
               }
             />
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-              <Text style={styles.closeText}>{t('close')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
-      {/* Remarks Modal */}
-      <Modal
-        animationType="fade"
-        transparent
-        visible={remarksVisible}
-        onRequestClose={() => setRemarksVisible(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.remarksContainer}>
-            <Text style={styles.remarksTitle}>{t('responderremarks')}</Text>
-            <Text style={styles.remarksText}>{selectedRemarks}</Text>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setRemarksVisible(false)}
-            >
-              <Text style={styles.closeText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Decline Remarks Input Modal */}
-      <Modal
-        animationType="fade"
-        transparent
-        visible={declineModalVisible}
-        onRequestClose={() => setDeclineModalVisible(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.remarksContainer}>
-            <Text style={styles.remarksTitle}>{t('reasons')}</Text>
-            <TextInput
-              placeholder={t('reasonsfordecline')}
-              placeholderTextColor={"#888"}
-              style={styles.input}
-              value={selectedRemarks}
-              onChangeText={setSelectedRemarks}
-              multiline
-            />
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#F44336" }]}
-                onPress={submitDecline}
-              >
-                <Text style={styles.actionText}>{t('submit')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#9E9E9E" }]}
-                onPress={() => setDeclineModalVisible(false)}
-              >
-                <Text style={styles.actionText}>{t('declinerequest')}</Text>
+            <View style={styles.footer}>
+              <TouchableOpacity style={styles.btnClose} onPress={onClose}>
+                <Text style={styles.btnCloseText}>Close Dashboard</Text>
               </TouchableOpacity>
             </View>
+
           </View>
         </View>
       </Modal>
+
+      <DeclineModal 
+        visible={declineModalVisible} 
+        onClose={() => setDeclineModalVisible(false)} 
+        onSubmit={submitDecline}
+        remarks={declineRemarks}
+        setRemarks={setDeclineRemarks}
+      />
     </>
   );
 };
 
+// ==========================================
+// 3. StyleSheet (Modern Dispatch Theme)
+// ==========================================
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "rgba(17, 24, 39, 0.7)", // Darker, professional backdrop
+    justifyContent: "flex-end", // Slide up from bottom feel
   },
-  container: {
-    backgroundColor: "#fff",
-    width: "85%",
-    borderRadius: 15,
+  mainContainer: {
+    backgroundColor: "#F3F4F6", // Light gray dashboard background
+    width: "100%",
+    height: "85%", // Tall enough for lists
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: "hidden",
+  },
+  header: {
+    backgroundColor: "#FFFFFF",
     padding: 20,
-    maxHeight: "80%",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
   title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 15,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+  listContent: {
+    padding: 16,
   },
   card: {
-    backgroundColor: "#f9f9f9",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    elevation: 2, // Subtle shadow for Android
+    shadowColor: "#000", // Subtle shadow for iOS
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
-  cardRow: {
+  ownStationCard: {
+    borderColor: "#3B82F6", // Highlight border for own station
+    borderWidth: 2,
+  },
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    marginBottom: 12,
   },
-  name: {
-    fontSize: 16,
-    fontWeight: "bold",
+  stationTitleContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    flex: 1,
+    marginRight: 10,
   },
-  detail: {
-    color: "#555",
-    fontSize: 14,
+  stationIcon: {
+    fontSize: 22,
+    marginRight: 10,
     marginTop: 2,
   },
-  statusTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  stationName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
+    flexShrink: 1,
   },
-  statusText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 13,
-    textTransform: "capitalize",
+  yourStationTag: {
+    backgroundColor: "#DBEAFE", // Light blue
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+    alignSelf: "flex-start",
   },
-  remarksButton: {
-    backgroundColor: "#2196F3",
-    marginTop: 8,
-    borderRadius: 8,
-    paddingVertical: 6,
+  yourStationText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#1D4ED8",
+    textTransform: "uppercase",
   },
-  remarksButtonText: {
-    color: "#fff",
-    textAlign: "center",
-    fontWeight: "bold",
+  cardBody: {
+    marginBottom: 12,
   },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginHorizontal: 4,
+  addressLabel: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
+  addressText: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginTop: 2,
   },
-  actionText: {
-    color: "#fff",
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-  empty: {
-    textAlign: "center",
-    color: "#777",
-    marginTop: 20,
-  },
-  closeBtn: {
-    backgroundColor: "#2196F3",
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 15,
-  },
-  closeText: {
-    color: "#fff",
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-  remarksContainer: {
-    backgroundColor: "#fff",
-    width: "80%",
-    borderRadius: 12,
-    padding: 20,
+  remarksBox: {
+    backgroundColor: "#FEF2F2", // Light red bg
+    borderLeftWidth: 3,
+    borderLeftColor: "#EF4444",
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 12,
   },
   remarksTitle: {
-    fontSize: 17,
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#991B1B",
+    marginBottom: 2,
   },
   remarksText: {
-    fontSize: 15,
-    color: "#333",
-    textAlign: "center",
+    fontSize: 14,
+    color: "#7F1D1D",
+    fontStyle: "italic",
   },
-  ongoingNoticeTitle: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#FF8C00',
-  marginBottom: 4,
-},
-doneNoticeBox: {
-  backgroundColor: '#FFF4E5',
-  borderLeftWidth: 5,
-  borderLeftColor: '#5cee49ff',
-  padding: 10,
-  borderRadius: 8,
-  marginTop: 8,
-},
-doneNoticeTitle: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#22ec29ff',
-  marginBottom: 4,
-},
-input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+  actionContainer: {
+    flexDirection: "row",
+    gap: 10, // RN 0.71+ supports gap
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    paddingTop: 12,
+  },
+  badge: {
     paddingHorizontal: 10,
-    height: 80,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  btn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnAccept: {
+    backgroundColor: "#10B981",
+    flex: 1,
+  },
+  btnDecline: {
+    backgroundColor: "#EF4444",
+    flex: 1,
+  },
+  btnCancel: {
+    backgroundColor: "#E5E7EB",
+  },
+  btnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  btnTextCancel: {
+    color: "#374151",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  footer: {
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  btnClose: {
+    backgroundColor: "#1F2937",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  btnCloseText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    width: "90%",
+    borderRadius: 16,
+    padding: 24,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  textInput: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    padding: 12,
+    height: 100,
+    fontSize: 15,
+    color: "#111827",
     marginBottom: 20,
-    backgroundColor: '#fafafa',
-    color: '#000',
-    textAlignVertical: 'top',
+  },
+  modalActionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#9CA3AF",
+    fontSize: 16,
+    fontStyle: "italic",
   },
 });
 

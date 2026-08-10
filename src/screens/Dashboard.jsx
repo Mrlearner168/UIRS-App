@@ -17,6 +17,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View
 } from "react-native";
 import EncryptedStorage from "react-native-encrypted-storage";
@@ -394,7 +395,44 @@ const UserListReports = () => {
       ]
     );
   };
-  
+  const getSeverityLabel = (severity_level) => {
+    const severityMap = {
+      1: "Low",
+      2: "Moderate",
+      3: "High",
+      4: "Critical",
+      5: "Extreme",
+    };
+
+    return severityMap[severity_level] || "Unknown";
+  };
+    
+    // Ensure we are checking it as a string for easy matching
+  const getSeverityColor = (severity_level) => {
+    switch (Number(severity_level)) {
+      case 5:
+      case 'critical':
+      case 'extreme':
+        return '#8B0000'; // Dark Red - Highest urgency
+      case 4:
+      case 'severe':
+      case 'major':
+        return '#DC3545'; // Bright Red
+      case 3:
+      case 'high':
+      case 'moderate':
+        return '#FD7E14'; // Orange
+      case 2:
+      case 'medium':
+      case 'minor':
+        return '#FFC107'; // Yellow
+      case 1:
+      case 'low':
+        return '#28A745'; // Green - Lowest urgency
+      default:
+        return '#6C757D'; // Gray - Fallback for missing/unknown data
+    }
+  };
   // Updated filteredIncidents to check all data points
   const filteredIncidents = incidents
     .filter((incident) => {
@@ -432,62 +470,71 @@ const UserListReports = () => {
   
 
   return (
-    <TouchableOpacity 
-      activeOpacity={1} 
-      style={styles.container} 
-      onPress={() => {
-        setShowSuggestions(false);
-        Keyboard.dismiss();
-      }}
-    >
-      <Text style={styles.heading}>
-        {t('yourreports')}{" "}
-        <Icon name={isOnline ? 'wifi' : 'wifi-off'} size={20} color={isOnline ? 'green' : 'red'} />
-        {isOnline ? " Online" : " Offline"}
-      </Text>
+    <View style={styles.container}>
+      
+      {/* 
+        1. Wrap ONLY the top section to handle keyboard dismissal.
+        2. Ensure exactly ONE <View> is inside TouchableWithoutFeedback.
+      */}
+      <TouchableWithoutFeedback
+        onPress={() => {
+          setShowSuggestions(false);
+          Keyboard.dismiss();
+        }}
+      >
+        <View>
+          <Text style={styles.heading}>
+            {t('yourreports')}{" "}
+            <Icon name={isOnline ? 'wifi' : 'wifi-off'} size={20} color={isOnline ? 'green' : 'red'} />
+            {isOnline ? " Online" : " Offline"}
+          </Text>
 
-      {/* Beautiful Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchBarWrapper, isSearchFocused && styles.searchBarFocused]}>
-          <Icon name="magnify" size={24} color={isSearchFocused ? "#007BFF" : "#888"} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('search') || "Search reports..."}
-            placeholderTextColor={"#aaa"}
-            value={searchQuery}
-            onChangeText={handleSearchChange}
-            onFocus={() => {
-              setIsSearchFocused(true);
-              if (searchQuery.length > 0 && suggestions.length > 0) {
-                setShowSuggestions(true);
-              }
-            }}
-            onBlur={() => setIsSearchFocused(false)}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
-              <Icon name="close-circle" size={20} color="#bbb" />
-            </TouchableOpacity>
-          )}
-        </View>
+          {/* Beautiful Search Bar */}
+          <View style={styles.searchContainer}>
+            <View style={[styles.searchBarWrapper, isSearchFocused && styles.searchBarFocused]}>
+              <Icon name="magnify" size={24} color={isSearchFocused ? "#007BFF" : "#888"} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={t('search') || "Search reports..."}
+                placeholderTextColor={"#aaa"}
+                value={searchQuery}
+                onChangeText={handleSearchChange}
+                onFocus={() => {
+                  setIsSearchFocused(true);
+                  if (searchQuery.length > 0 && suggestions.length > 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
+                onBlur={() => setIsSearchFocused(false)}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+                  <Icon name="close-circle" size={20} color="#bbb" />
+                </TouchableOpacity>
+              )}
+            </View>
 
-        {showSuggestions && suggestions.length > 0 && (
-          <View style={styles.suggestionsContainer}>
-            {suggestions.map((item, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={[styles.suggestionItem, index === suggestions.length - 1 && styles.suggestionItemLast]} 
-                onPress={() => handleSuggestionSelect(item)}
-              >
-                <Icon name="magnify" size={16} color="#aaa" style={styles.suggestionIcon} />
-                <Text style={styles.suggestionText} numberOfLines={1}>{item}</Text>
-                <Icon name="arrow-top-left" size={16} color="#ddd" />
-              </TouchableOpacity>
-            ))}
+            {showSuggestions && suggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                {suggestions.map((item, index) => (
+                  <TouchableOpacity 
+                    key={index} 
+                    style={[styles.suggestionItem, index === suggestions.length - 1 && styles.suggestionItemLast]} 
+                    onPress={() => handleSuggestionSelect(item)}
+                  >
+                    <Icon name="magnify" size={16} color="#aaa" style={styles.suggestionIcon} />
+                    <Text style={styles.suggestionText} numberOfLines={1}>{item}</Text>
+                    <Icon name="arrow-top-left" size={16} color="#ddd" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
-        )}
-      </View>
+        </View>
+      </TouchableWithoutFeedback>
 
+      {/* The rest of your components remain OUTSIDE the Touchable so the list can scroll */}
+      
       {!isOnline && <Text style={{ textAlign: "center", color: "red", marginTop: 5 }}>{t('offline')}(media unavailable)</Text>}
 
       {loading ? (
@@ -500,13 +547,13 @@ const UserListReports = () => {
       ) : (
         <FlatList
           data={filteredIncidents}
-          keyboardShouldPersistTaps="handled" // Allows tapping list items while keyboard is open
+          keyboardShouldPersistTaps="handled"
           keyExtractor={(item, index) => item?.id?.toString() || index.toString()}
           contentContainerStyle={{ paddingBottom: 20 }}
           renderItem={({ item }) => {
             if (!item) return null;
             return (
-              <View style={styles.card}>
+              <View style={[styles.card,{borderLeftColor: getSeverityColor(item.severity_level)}]}>
                 <Text>{t('incidenttype')}{item.incidentType || 'Unknown'}</Text>
                 <Text>{t('subtype')}{item.subType || 'Unknown'}</Text>
                 {item.location && (
@@ -516,9 +563,11 @@ const UserListReports = () => {
                     </Text>
                   </TouchableOpacity>
                 )}
+                <Text>{t('severity: ')}{getSeverityLabel(item.severity_level)}</Text>
                 {item.incidentType === "Others" && item.incidentDescription && (
                   <Text>{t('description')}{item.incidentDescription}</Text>
                 )}
+                
                 {item.incidentTime && <Text>{t('reportedtime')} {item.incidentTime}</Text>}
                 {item.created_at && (
                   <Text style={styles.date}>
@@ -539,7 +588,6 @@ const UserListReports = () => {
                   </Text>
                 )}
                 
-                {/* Reverted original tracking button logic */}
                 {(item.status !== "done" && item.status !== "cancelled" && item.is_deleted === false) && (
                   <TouchableOpacity
                     style={styles.trackButton}
@@ -588,7 +636,7 @@ const UserListReports = () => {
                                 source={{ uri: uri }}
                                 style={[styles.image, isLoading && { opacity: 0.5 }]}
                                 contentFit="cover"
-                                cachePolicy="memory-disk"
+                                cachePolicy="none"
                                 onLoad={() => handleImageLoad(uri)}
                                 onError={() => handleImageError(uri)}
                                 onLoadStart={() => setImageLoading(uri, true)}
@@ -678,7 +726,7 @@ const UserListReports = () => {
           </View>
         )}
       />
-    </TouchableOpacity>
+    </View>
   );
 };
 
@@ -779,6 +827,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+
+    borderLeftWidth: 6,      // Determines how thick the severity stripe is
+    borderLeftColor: '#ccc', // A fallback color just in case
   },
   mediaContainer: { 
     marginVertical: 15,

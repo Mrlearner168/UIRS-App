@@ -12,7 +12,9 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -37,12 +39,16 @@ class SocketService : Service() {
 
     private var mSocket: Socket? = null
     // Use your actual production URL here
-    private val SOCKET_URL = "https://uirs.duckdns.org" 
+    //private val SOCKET_URL = "https://uirs.duckdns.org" for the server
+    private val SOCKET_URL = "http://192.168.254.146:5000" 
+    //private val SOCKET_URL = "https://quenchless-unshirking-leonora.ngrok-free.dev" // For testing with ngrok
     private val TAG = "SocketService"
     private val CHANNEL_ID = "uirs_connection_channel"
     private val FALLBACK_CHANNEL_ID = "uirs_fallback_channel"
     private val EMERGENCY_NOTIFICATION_ID = 888
     private val NOTIFICATION_ID = 999 // Fixed ID to prevent flickering
+    private val MAX_INIT_RETRIES = 5
+    private val INIT_RETRY_DELAY_MS = 1500L
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -50,6 +56,8 @@ class SocketService : Service() {
     // Store current credentials for validation logging
     private var currentStationId: String? = null
     private var currentUserId: String? = null
+    private var currentAuthKey: String? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
     
     // Track network state to force reconnects
     private lateinit var connectivityManager: ConnectivityManager
@@ -80,23 +88,31 @@ class SocketService : Service() {
         this.currentStationId = stationId
         this.currentUserId = userId
 
-        if (token != null && userId != null) {
+        Log.d(TAG, "🧭 onStartCommand credentials: userId=$userId, stationId=$stationId, tokenPresent=${!token.isNullOrBlank()})")
+
+        if (!token.isNullOrBlank() && !userId.isNullOrBlank()) {
             Log.d(TAG, "🚀 Starting Socket Service. User: $userId, Target Station ID: $stationId")
             connectToSocket(userId, token, stationId)
         } else {
-            Log.e(TAG, "❌ Missing Credentials. Stopping Socket Service.")
-            stopForeground(true)
-            stopSelf()
+            Log.w(TAG, "⚠️ Credentials not ready yet. Retrying socket initialization for new login.")
+            scheduleSocketInitRetry(userId, token, stationId, 0)
         }
 
         return START_STICKY
     }
 
     private fun connectToSocket(userId: String, token: String, stationId: String?) {
-        // If already connected, don't churn the connection
-        if (mSocket != null && mSocket!!.connected()) {
+        val authKey = "$userId|${stationId ?: ""}|$token"
+
+        // If already connected for the same user/session, don't churn the connection
+        if (mSocket != null && mSocket!!.connected() && currentAuthKey == authKey) {
+            Log.d(TAG, "Socket already connected for the active session.")
             return
         }
+
+        // Fresh login or changed credentials: disconnect and recreate the socket cleanly
+        disconnectSocket()
+        currentAuthKey = authKey
 
         try {
             // Options optimized for mobile networks
@@ -146,6 +162,38 @@ class SocketService : Service() {
         }
     }
 
+    private fun scheduleSocketInitRetry(userId: String?, token: String?, stationId: String?, attempt: Int) {
+        if (attempt >= MAX_INIT_RETRIES) {
+            Log.e(TAG, "❌ Socket initialization retries exhausted. Credentials may still be missing.")
+            return
+        }
+
+        mainHandler.postDelayed({
+            val sharedPref = getSharedPreferences("MyAppData", Context.MODE_PRIVATE)
+            val freshUserId = sharedPref.getString("userId", userId)
+            val freshToken = sharedPref.getString("token", token)
+            val freshStationId = sharedPref.getString("stationId", stationId)
+
+            if (!freshToken.isNullOrBlank() && !freshUserId.isNullOrBlank()) {
+                Log.d(TAG, "🔁 Retrying socket initialization with fresh credentials.")
+                connectToSocket(freshUserId, freshToken, freshStationId)
+            } else {
+                scheduleSocketInitRetry(freshUserId, freshToken, freshStationId, attempt + 1)
+            }
+        }, INIT_RETRY_DELAY_MS + (attempt * 500L))
+    }
+
+    private fun disconnectSocket() {
+        try {
+            mSocket?.disconnect()
+            mSocket?.off()
+        } catch (e: Exception) {
+            Log.w(TAG, "Socket cleanup warning: ${e.message}")
+        } finally {
+            mSocket = null
+        }
+    }
+
     /**
      * Processes the incoming data, Deduplicates, and Launches the Siren.
      */
@@ -156,8 +204,11 @@ class SocketService : Service() {
             // 1. Extract Identifiers
             val incidentId = json.optString("incident_id", json.optString("id", ""))
             val incomingStationId = json.optString("station_id", "N/A")
+            val incomingSubtype = json.optString("subtype", "N/A")
+            val incomingSeverity = json.optString("severity", "N/A")
             
             Log.d(TAG, "📦 Processing Payload: $json")
+            Log.d(TAG, "🔍 Extracted - Incident ID: $incidentId, Station ID: $incomingStationId, Subtype: $incomingSubtype")
 
             // 2. Deduplication check
             val decision = EventDeduplicator.checkIncident(incidentId)
@@ -170,7 +221,7 @@ class SocketService : Service() {
             Log.i(TAG, "✅ Deduplication Passed (${decision.name}). Preparing to launch Emergency Service...")
 
             val title = "🚨 ${json.optString("type", "EMERGENCY").uppercase()} ALERT"
-            val body = "Location: ${json.optString("location", "Unknown Location")}"
+            val body = "Incident Reported: ${incomingSubtype}\n Severity: ${incomingSeverity}\n Location: ${json.optString("location", "Unknown Location")}"
 
             // 3. Convert JSON to a Map for the attempt function
             val dataMap = mutableMapOf<String, String>()
@@ -393,8 +444,7 @@ class SocketService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            mSocket?.disconnect()
-            mSocket?.off()
+            disconnectSocket()
             if (wakeLock?.isHeld == true) wakeLock?.release()
             if (wifiLock?.isHeld == true) wifiLock?.release()
             if (networkCallback != null) connectivityManager.unregisterNetworkCallback(networkCallback!!)

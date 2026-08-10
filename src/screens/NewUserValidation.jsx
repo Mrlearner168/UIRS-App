@@ -207,7 +207,9 @@ const NewUserValidation = ({ navigation }) => {
                         source={{ uri }}
                         style={styles.image}
                         contentFit="cover"
-                        cachePolicy="memory-disk"
+                        //for production
+                        //cachePolicy="memory-disk"
+                        cachePolicy="none"
                         onLoad={() => handleImageLoad(uri)}
                         onError={() => handleImageError(uri)}
                         onLoadStart={() => setImageLoading(uri, true)}

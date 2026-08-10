@@ -7,20 +7,20 @@ import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  RefreshControl,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    RefreshControl,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import EncryptedStorage from "react-native-encrypted-storage";
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -32,15 +32,6 @@ const { width, height } = Dimensions.get('window');
 
 export default function AddStationScreen() {
   const navigation = useNavigation();
-
-  const [id, setId] = useState("");
-  const [name, setName] = useState("");
-  const [type, setType] = useState(STATION_TYPES[0]);
-  const [addressSelected, setAddressSelected] = useState("Select Location");
-  const [latitude, setLatitude] = useState(null);
-  const [longitude, setLongitude] = useState(null);
-  const [contact, setContact] = useState("");
-  const [facebook, setFacebook] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [token, setToken] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
@@ -53,7 +44,40 @@ export default function AddStationScreen() {
   const [activeForm, setActiveForm] = useState("add");
   const [stations, setStations] = useState([]);
   const [stationId, setStationId] = useState("");
-  const [editingStation, setEditingStation] = useState(null); 
+
+    // Add Station
+  const [addStationId, setAddStationId] = useState("");
+  const [addName, setAddName] = useState("");
+  const [addType, setAddType] = useState(STATION_TYPES[0]);
+
+  const [addAddress, setAddAddress] = useState("Select Location");
+  const [addLatitude, setAddLatitude] = useState(null);
+  const [addLongitude, setAddLongitude] = useState(null);
+
+  const [addContact, setAddContact] = useState("");
+  const [addFacebook, setAddFacebook] = useState("");
+
+  const [addCapabilityLevel, setAddCapabilityLevel] = useState("");
+  const [addMaxVehicles, setAddMaxVehicles] = useState("");
+
+  // Edit Station
+  const [editingStation, setEditingStation] = useState(null);
+
+  const [editStationId, setEditStationId] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState(STATION_TYPES[0]);
+
+  const [editAddress, setEditAddress] = useState("Select Location");
+  const [editLatitude, setEditLatitude] = useState(null);
+  const [editLongitude, setEditLongitude] = useState(null);
+
+  const [editContact, setEditContact] = useState("");
+  const [editFacebook, setEditFacebook] = useState("");
+
+  const [editCapabilityLevel, setEditCapabilityLevel] = useState("");
+
+  const [editMaxVehicles, setEditMaxVehicles] = useState("");
+
   const {t} = useTranslation();  
 
   //fetch stations for delete
@@ -106,44 +130,118 @@ export default function AddStationScreen() {
     }
   };
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchStations();
-    setId("");
-    setName("");
-    setType(STATION_TYPES[0]);
-    setAddressSelected("Select Location");
-    setLatitude(null);
-    setLongitude(null);
-    setContact("");
-    setFacebook("");
-    setSubmitting(false);
-    setSearchText("");
-    setSearchResults([]);
-    setTimeout(() => setRefreshing(false), 500);
+  const onRefresh = useCallback(async () => {
+      setRefreshing(true);
+
+      try {
+          await fetchStations();
+
+          // Reset Add Form
+          resetAddForm();
+
+          // Reset Edit Form
+          resetEditForm();
+
+          // Reset Map
+          setMarkerCoords(null);
+
+          // Reset Search
+          setSearchText("");
+          setSearchResults([]);
+
+          // Close Modal
+          setModalVisible(false);
+
+      } catch (error) {
+          console.log(error);
+      } finally {
+          setRefreshing(false);
+      }
   }, [token]);
 
-   const startEdit = (station) => {
-    setEditingStation(station.id); // keep backend id for update
-    setStationId(station.station_id); // editable
-    setName(station.name);
-    setType(station.type);
-    setAddressSelected(station.address);
-    setLatitude(station.latitude);
-    setLongitude(station.longitude);
-    setContact(station.contact || "");
-    setFacebook(station.facebook || "");
-    setMarkerCoords({ latitude: station.latitude, longitude: station.longitude });
+  const startEdit = (station) => {
+      setEditingStation(station.id);
+
+      setEditStationId(station.station_id);
+      setEditName(station.name);
+      setEditType(station.type);
+
+      setEditAddress(station.address);
+      setEditLatitude(station.latitude);
+      setEditLongitude(station.longitude);
+
+      setEditContact(station.contact || "");
+      setEditFacebook(station.facebook || "");
+
+      setEditCapabilityLevel(String(station.capability_level ?? ""));
+      setEditMaxVehicles(String(station.max_vehicles ?? ""));
+
+      setMarkerCoords({
+          latitude: station.latitude,
+          longitude: station.longitude,
+      });
   };
 
+  const resetAddForm = () => {
+      setAddStationId("");
+      setAddName("");
+      setAddType(STATION_TYPES[0]);
 
-  const openModal = () => {
-    if (!markerCoords) {
-      return Alert.alert(t('locnotready'));
-    }
-    setModalVisible(true);
+      setAddAddress("Select Location");
+      setAddLatitude(null);
+      setAddLongitude(null);
+
+      setAddContact("");
+      setAddFacebook("");
+
+      setAddCapabilityLevel("");
+      setAddMaxVehicles("");
+      setSearchText("");
+      setSearchResults([]);
+      setModalVisible(false);
+      setMarkerCoords(null);
   };
 
+  const resetEditForm = () => {
+      setEditingStation(null);
+    
+      setEditStationId("");
+      setEditName("");
+      setEditType(STATION_TYPES[0]);
+    
+      setEditAddress("Select Location");
+      setEditLatitude(null);
+      setEditLongitude(null);
+    
+      setEditContact("");
+      setEditFacebook("");
+    
+      setEditCapabilityLevel("");
+      setEditMaxVehicles("");
+
+      setSearchText("");
+      setSearchResults([]);
+      setModalVisible(false);
+      setMarkerCoords(null);
+  };
+  
+
+  const openModal = async () => {
+      try {
+          if (!markerCoords) {
+              const location = await Location.getCurrentPositionAsync({});
+
+              setMarkerCoords({
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+              });
+          }
+
+          setModalVisible(true);
+      } catch (error) {
+          Alert.alert(t('locnotready'));
+      }
+  };
   const handleSearch = async (query) => {
     setSearchText(query);
     if (!query.trim()) {
@@ -167,64 +265,281 @@ export default function AddStationScreen() {
   
 
   const selectSearchResult = (feature) => {
-    const [lng, lat] = feature.center;
-    setMarkerCoords({ latitude: lat, longitude: lng });
-    setAddressSelected(feature.place_name);
-    setSearchResults([]);
+      const [longitude, latitude] = feature.center;
+
+      setMarkerCoords({
+          latitude,
+          longitude,
+      });
+
+      if (activeForm === "add") {
+          setAddAddress(feature.place_name);
+          setAddLatitude(latitude);
+          setAddLongitude(longitude);
+      } else if (activeForm === "edit") {
+          setEditAddress(feature.place_name);
+          setEditLatitude(latitude);
+          setEditLongitude(longitude);
+      }
+
+      setSearchText(feature.place_name);
+      setSearchResults([]);
   };
 
-  const confirmLocation = () => {
-    if (markerCoords) {
-      setLatitude(markerCoords.latitude);
-      setLongitude(markerCoords.longitude);
-      setAddressSelected(
-        `Lat: ${markerCoords.latitude.toFixed(5)}, Lng: ${markerCoords.longitude.toFixed(5)}`
-      );
+  const confirmLocation = async () => {
+      if (!markerCoords) {
+          Alert.alert("Please select a location.");
+          return;
+      }
+
+      const latitude = markerCoords.latitude;
+      const longitude = markerCoords.longitude;
+
+      let address = `Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}`;
+
+      try {
+          const geoRes = await axios.get(
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json`,
+              {
+                  params: {
+                      access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN,
+                  },
+              }
+          );
+
+          if (geoRes.data.features.length > 0) {
+              address = geoRes.data.features[0].place_name;
+          }
+      } catch (error) {
+          console.log("Reverse geocode failed:", error);
+      }
+
+      if (activeForm === "add") {
+          setAddLatitude(latitude);
+          setAddLongitude(longitude);
+          setAddAddress(address);
+      } else if (activeForm === "edit") {
+          setEditLatitude(latitude);
+          setEditLongitude(longitude);
+          setEditAddress(address);
+      }
+
+      setModalVisible(false);
+      setSearchResults([]);
+      setSearchText("");
+  };
+
+  const validateAdd = () => {
+    if (!addStationId.trim()) {
+      return "Station ID is required";
     }
-    setModalVisible(false);
-  };
 
-  const validate = () => {
-    if (!id.trim()) return "Station ID is required";
-    if (!name.trim()) return "Name is required";
-    if (!latitude || !longitude) return "Location not selected";
-    if (contact && !/^(09|\+639)\d{9}$/.test(contact.trim())) return "Invalid contact number";
+    if (!/^\d+$/.test(addStationId.trim())) {
+      return "Station ID must contain numbers only";
+    }
+
+    if (!addName.trim()) {
+      return "Station name is required";
+    }
+
+    if (!addLatitude || !addLongitude) {
+      return "Please select a station location";
+    }
+
+    if (
+      addContact.trim() &&
+      !/^(09\d{9}|\+639\d{9})$/.test(addContact.trim())
+    ) {
+      return "Invalid contact number";
+    }
+
+    if (
+      addCapabilityLevel &&
+      (Number(addCapabilityLevel) < 1 ||
+        Number(addCapabilityLevel) > 5)
+    ) {
+      return "Capability Level must be between 1 and 5";
+    }
+
+    if (
+      addMaxVehicles &&
+      Number(addMaxVehicles) < 0
+    ) {
+      return "Maximum vehicles cannot be negative";
+    }
+
+    if (
+      addFacebook.trim() &&
+      !/^https?:\/\/.+/i.test(addFacebook.trim())
+    ) {
+      return "Facebook URL is invalid";
+    }
+
     return null;
   };
 
-   const saveStation = async () => {
-    if (!name.trim() || !latitude || !longitude)
-      return Alert.alert(t('namelocrequired'));
+  const validateEdit = () => {
+    if (!editStationId.trim()) {
+      return "Station ID is required";
+    }
 
-    try {
-      let readableAddress = addressSelected;
-      if (latitude && longitude) {
-        const geoRes = await axios.get(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json`,
-          { params: { access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN } }
-        );
-        if (geoRes.data.features.length > 0)
-          readableAddress = geoRes.data.features[0].place_name;
+    if (!/^\d+$/.test(editStationId.trim())) {
+      return "Station ID must contain numbers only";
+    }
+
+    if (!editName.trim()) {
+      return "Station name is required";
+    }
+
+    if (!editLatitude || !editLongitude) {
+      return "Please select a station location";
+    }
+
+    if (
+      editContact.trim() &&
+      !/^(09\d{9}|\+639\d{9})$/.test(editContact.trim())
+    ) {
+      return "Invalid contact number";
+    }
+
+    if (
+      editCapabilityLevel &&
+      (Number(editCapabilityLevel) < 1 ||
+        Number(editCapabilityLevel) > 5)
+    ) {
+      return "Capability Level must be between 1 and 5";
+    }
+
+    if (
+      editMaxVehicles &&
+      Number(editMaxVehicles) < 0
+    ) {
+      return "Maximum vehicles cannot be negative";
+    }
+
+    if (
+      editFacebook.trim() &&
+      !/^https?:\/\/.+/i.test(editFacebook.trim())
+    ) {
+      return "Facebook URL is invalid";
+    }
+
+    return null;
+  };
+
+
+  const saveStation = async () => {
+      const err = validateEdit();
+
+      if (err) {
+          Alert.alert(err);
+          return;
       }
 
-      await axios.put(`${SERVER_URL}/stations_update/${editingStation}`, {
-        station_id: stationId.trim(),
-        name: name.trim(),
-        type,
-        address: readableAddress,
-        latitude,
-        longitude,
-        contact: contact.trim() || null,
-        facebook: facebook.trim() || null,
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      Alert.alert(t('stationupdated'));
-      setEditingStation(null);
-      fetchStations();
-    } catch (err) {
-      Alert.alert(t('stationfailed'));
-    }
+      if (!token) {
+          Alert.alert("Token missing, please login again");
+          return;
+      }
+
+      setSubmitting(true);
+
+      try {
+          // Check existing stations
+          const { data: stationsData } = await axios.get(
+              `${SERVER_URL}/stations`,
+              {
+                  headers: {
+                      Authorization: `Bearer ${token}`,
+                  },
+              }
+          );
+
+          // Duplicate Station ID
+          if (
+              stationsData.some(
+                  (station) =>
+                      station.id !== editingStation &&
+                      String(station.station_id) === editStationId.trim()
+              )
+          ) {
+              Alert.alert(t("dupstationid"));
+              return;
+          }
+
+          // Duplicate Contact
+          if (
+              editContact.trim() &&
+              stationsData.some(
+                  (station) =>
+                      station.id !== editingStation &&
+                      station.contact &&
+                      station.contact === editContact.trim()
+              )
+          ) {
+              Alert.alert(t("dupcontact"));
+              return;
+          }
+
+          // Reverse Geocode
+          let readableAddress = editAddress;
+
+          try {
+              const geoRes = await axios.get(
+                  `https://api.mapbox.com/geocoding/v5/mapbox.places/${editLongitude},${editLatitude}.json`,
+                  {
+                      params: {
+                          access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN,
+                      },
+                  }
+              );
+
+              if (geoRes.data.features.length > 0) {
+                  readableAddress = geoRes.data.features[0].place_name;
+              }
+          } catch (error) {
+              console.log("Reverse geocode failed:", error);
+          }
+
+          const payload = {
+              station_id: editStationId.trim(),
+              name: editName.trim(),
+              type: editType,
+              address: readableAddress,
+              latitude: editLatitude,
+              longitude: editLongitude,
+              contact: editContact.trim() || null,
+              facebook: editFacebook.trim() || null,
+              capability_level: Number(editCapabilityLevel) || 1,
+              max_vehicles: Number(editMaxVehicles) || 0,
+          };
+          console.log("Payload for update:", payload);
+          await axios.put(
+              `${SERVER_URL}/stations_update/${editingStation}`,
+              payload,
+              {
+                  headers: {
+                      Authorization: `Bearer ${token}`,
+                  },
+              }
+          );
+
+          Alert.alert(t("stationupdated"));
+
+          resetEditForm();
+          fetchStations();
+
+      } catch (err) {
+          console.log(err.response?.data || err);
+
+          Alert.alert(
+              "Error",
+              err.response?.data?.error ||
+              err.response?.data?.message ||
+              err.message
+          );
+      } finally {
+          setSubmitting(false);
+      }
   };
   
   const deleteStation = async (stationId) => {
@@ -240,76 +555,122 @@ export default function AddStationScreen() {
   };
 
   const handleSubmit = async () => {
-    const err = validate();
-    if (err) return Alert.alert(err);
-    if (!token) return Alert.alert("Token missing, please login again");
-
-    setSubmitting(true);
-
-    try {
-      let check;
+      const err = validateAdd();
+    
+      if (err) {
+          Alert.alert(err);
+          return;
+      }
+    
+      if (!token) {
+          Alert.alert("Token missing, please login again");
+          return;
+      }
+    
+      setSubmitting(true);
+    
       try {
-        check = await axios.get(`${SERVER_URL}/stations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch (e) {
-        throw e;
-      }
-
-      if (check.data.some((station) => station.id === Number(id))) {
-        Alert.alert(t('dupstationid'));
-        setSubmitting(false);
-        return;
-      }
-
-      if (contact && check.data.some((station) => station.contact === contact.trim())) {
-        Alert.alert(t('dupcontact'));
-        setSubmitting(false);
-        return;
-      }
-
-      let readableAddress = addressSelected;
-      if (latitude && longitude) {
-        try {
-          const geoRes = await axios.get(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json`,
-            { params: { access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN } }
+          // Get existing stations
+          const { data: stationsData } = await axios.get(
+              `${SERVER_URL}/stations`,
+              {
+                  headers: {
+                      Authorization: `Bearer ${token}`,
+                  },
+              }
           );
-          if (geoRes.data.features && geoRes.data.features.length > 0) {
-            readableAddress = geoRes.data.features[0].place_name;
+        
+          // Duplicate Station ID
+          if (
+              stationsData.some(
+                  (station) =>
+                      String(station.station_id) === addStationId.trim()
+              )
+          ) {
+              Alert.alert(t("dupstationid"));
+              return;
           }
-        } catch (e) {
-          console.log("Reverse geocode failed:", e);
-        }
+        
+          // Duplicate Contact
+          if (
+              addContact.trim() &&
+              stationsData.some(
+                  (station) =>
+                      station.contact &&
+                      station.contact === addContact.trim()
+              )
+          ) {
+              Alert.alert(t("dupcontact"));
+              return;
+          }
+        
+          // Reverse Geocoding
+          let readableAddress = addAddress;
+        
+          try {
+              const geoRes = await axios.get(
+                  `https://api.mapbox.com/geocoding/v5/mapbox.places/${addLongitude},${addLatitude}.json`,
+                  {
+                      params: {
+                          access_token: RNMAPBOX_MAPS_DOWNLOAD_TOKEN,
+                      },
+                  }
+              );
+            
+              if (geoRes.data.features.length > 0) {
+                  readableAddress = geoRes.data.features[0].place_name;
+              }
+          } catch (error) {
+              console.log("Reverse geocode failed:", error);
+          }
+        
+          // Payload
+          const payload = {
+              station_id: addStationId.trim(),
+              name: addName.trim(),
+              type: addType,
+              address: readableAddress,
+              latitude: addLatitude,
+              longitude: addLongitude,
+              contact: addContact.trim() || null,
+              facebook: addFacebook.trim() || null,
+              capability_level: Number(addCapabilityLevel) || 1,
+              max_vehicles: Number(addMaxVehicles) || 0,
+          };
+        
+          const res = await axios.post(
+              `${SERVER_URL}/addstation`,
+              payload,
+              {
+                  headers: {
+                      Authorization: `Bearer ${token}`,
+                  },
+              }
+          );
+        
+          Alert.alert(
+              "Success",
+              `Station ${res.data.station_id || addStationId} added successfully.`
+          );
+        
+          resetAddForm();
+          fetchStations();
+        
+      } catch (err) {
+          console.log(err.response?.data || err);
+      
+          Alert.alert(
+              "Error",
+              err.response?.data?.error ||
+              err.response?.data?.message ||
+              err.message
+          );
+      } finally {
+          setSubmitting(false);
       }
-
-      const payload = {
-        station_id: id,
-        name: name.trim(),
-        type,
-        address: readableAddress,
-        latitude,
-        longitude,
-        contact: contact.trim() || null,
-        facebook: facebook.trim() || null,
-      };
-
-      try {
-        const res = await axios.post(`${SERVER_URL}/addstation`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        Alert.alert(`Station saved: ID ${res.data?.id || "(created)"}`);
-        onRefresh();
-      } catch (e) {
-        throw e;
-      }
-    } catch (err) {
-      Alert.alert(err.response?.data?.error || err.message || "Submit failed");
-    } finally {
-      setSubmitting(false);
-    }
   };
-  
+  console.log("Stations", stations);
+  console.log("Capability_level" , stations.max_vehicles ,  stations.capability_level);
 
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: '#F3F4F6'}}>
@@ -349,7 +710,7 @@ export default function AddStationScreen() {
                 keyExtractor={() => "dummy"}
                 contentContainerStyle={{ paddingBottom: 20 }}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    <RefreshControl refreshing={refreshing} onRefresh={resetAddForm} />
                 }
                 ListHeaderComponent={
                     <View style={styles.formCard}>
@@ -358,8 +719,8 @@ export default function AddStationScreen() {
                     <Text style={styles.inputLabel}>{t('stationid')}</Text>
                     <TextInput
                         style={styles.input}
-                        value={id}
-                        onChangeText={setId}
+                        value={addStationId}
+                        onChangeText={setAddStationId}
                         placeholder="e.g 1234"
                         placeholderTextColor={"#9CA3AF"}
                         keyboardType="numeric"
@@ -368,15 +729,15 @@ export default function AddStationScreen() {
                     <Text style={styles.inputLabel}>{t('stationname')}</Text>
                     <TextInput
                         style={styles.input}
-                        value={name}
-                        onChangeText={setName}
+                        value={addName}
+                        onChangeText={setAddName}
                         placeholder={t('enterstationname')}
                         placeholderTextColor={"#9CA3AF"}
                     />
             
                     <Text style={styles.inputLabel}>{t('type')}</Text>
                     <View style={styles.pickerContainer}>
-                        <Picker selectedValue={type} onValueChange={setType} style={styles.picker}>
+                        <Picker selectedValue={addType} onValueChange={setAddType} style={styles.picker}>
                         {STATION_TYPES.map((t) => (
                             <Picker.Item key={t} label={t} value={t} />
                         ))}
@@ -386,24 +747,46 @@ export default function AddStationScreen() {
                     <Text style={styles.inputLabel}>{t('stationaddress')}</Text>
                     <TouchableOpacity onPress={openModal} style={styles.locationButton}>
                         <Icon name="map-marker" size={20} color="#007BFF" style={{marginRight: 8}} />
-                        <Text style={styles.locationButtonText} numberOfLines={1}>{addressSelected}</Text>
+                        <Text style={styles.locationButtonText} numberOfLines={1}>{addAddress}</Text>
                     </TouchableOpacity>
                         
                     <Text style={styles.inputLabel}>{t('stationcontact')}</Text>
                     <TextInput
                         style={styles.input}
-                        value={contact}
-                        onChangeText={setContact}
+                        value={addContact}
+                        onChangeText={(text) => {
+                            // Remove any non-numeric characters (letters, spaces, symbols)
+                            const numericValue = text.replace(/[^0-9]/g, '');
+                            setAddContact(numericValue);
+                        }}
                         placeholder="09xxxxxxxxx"
                         placeholderTextColor={"#9CA3AF"}
                         keyboardType="phone-pad"
+                        maxLength={11}
                     />
-            
+                    <Text style={styles.inputLabel}>Capability Level</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={addCapabilityLevel}
+                        onChangeText={setAddCapabilityLevel}
+                        keyboardType="numeric"
+                        placeholder="1 - 5"
+                    />
+
+
+                    <Text style={styles.inputLabel}>Maximum Vehicles</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={addMaxVehicles}
+                        onChangeText={setAddMaxVehicles}
+                        keyboardType="numeric"
+                        placeholder="Maximum vehicles"
+                    />
                     <Text style={styles.inputLabel}>Facebook URL (Optional)</Text>
                     <TextInput
                         style={styles.input}
-                        value={facebook}
-                        onChangeText={setFacebook}
+                        value={addFacebook}
+                        onChangeText={setAddFacebook}
                         autoCapitalize="none"
                         placeholder="https://facebook.com/yourpage"
                         placeholderTextColor={"#9CA3AF"}
@@ -433,7 +816,7 @@ export default function AddStationScreen() {
                 contentContainerStyle={{ paddingBottom: 20 }}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    <RefreshControl refreshing={refreshing} onRefresh={resetEditForm} />
                 }
                 renderItem={({ item }) => (
                     <View style={styles.stationCard}>
@@ -444,24 +827,24 @@ export default function AddStationScreen() {
                             <Text style={styles.inputLabel}>{t('stationid')}</Text>
                             <TextInput
                                 style={styles.input}
-                                value={stationId}
-                                onChangeText={setStationId}
+                                value={editStationId}
+                                onChangeText={setEditStationId}
                                 placeholder={t('enterstationid')}
                             />
             
                             <Text style={styles.inputLabel}>{t('stationname')}</Text>
                             <TextInput
                                 style={styles.input}
-                                value={name}
-                                onChangeText={setName}
+                                value={editName}
+                                onChangeText={setEditName}
                                 placeholder={t('enterstationname')}
                             />
             
                             <Text style={styles.inputLabel}>{t('type')}</Text>
                             <View style={styles.pickerContainer}>
                                 <Picker
-                                    selectedValue={type}
-                                    onValueChange={setType}
+                                    selectedValue={editType}
+                                    onValueChange={setEditType}
                                     style={styles.picker}
                                 >
                                     {STATION_TYPES.map((t) => (
@@ -472,22 +855,38 @@ export default function AddStationScreen() {
                                 
                             <Text style={styles.inputLabel}>{t('location')}</Text>
                             <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.locationButton}>
-                                <Text style={styles.locationButtonText} numberOfLines={1}>{addressSelected}</Text>
+                                <Text style={styles.locationButtonText} numberOfLines={1}>{editAddress}</Text>
                             </TouchableOpacity>
                                 
                             <Text style={styles.inputLabel}>{t('stationcontact')}</Text>
                             <TextInput
                                 style={styles.input}
-                                value={contact}
-                                onChangeText={setContact}
+                                value={editContact}
+                                onChangeText={setEditContact}
                                 placeholder="09xxxxxxxxx"
+                                placeholderTextColor={"#9CA3AF"}
+                                keyboardType="phone-pad"
+                                maxLength={11} // Prevents typing more than 11 characters
                             />
-            
+                            <Text style={styles.inputLabel}>Capability Level</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={editCapabilityLevel}
+                                onChangeText={setEditCapabilityLevel}
+                                keyboardType="numeric"
+                            />
+                            <Text style={styles.inputLabel}>Maximum Vehicles</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={editMaxVehicles}
+                                onChangeText={setEditMaxVehicles}
+                                keyboardType="numeric"
+                            />
                             <Text style={styles.inputLabel}>Facebook URL</Text>
                             <TextInput
                                 style={styles.input}
-                                value={facebook}
-                                onChangeText={setFacebook}
+                                value={editFacebook}
+                                onChangeText={setEditFacebook}
                                 placeholder="https://facebook.com/..."
                             />
             

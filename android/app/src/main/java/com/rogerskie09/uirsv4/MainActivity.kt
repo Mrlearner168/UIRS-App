@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -33,6 +34,15 @@ class MainActivity : ReactActivity() {
     }
 
     private fun startSocketService() {
+        val sharedPref = getSharedPreferences("MyAppData", Context.MODE_PRIVATE)
+        val token = sharedPref.getString("token", null)
+        val userId = sharedPref.getString("userId", null)
+
+        // Only start the socket service if auth data is already present.
+        if (token.isNullOrBlank() || userId.isNullOrBlank()) {
+            return
+        }
+
         val serviceIntent = Intent(this, SocketService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)

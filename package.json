@@ -57,6 +57,7 @@
     "react-native-expo-image-cache": "^4.1.0",
     "react-native-geolocation-service": "^5.3.1",
     "react-native-gesture-handler": "~2.24.0",
+    "react-native-gifted-charts": "^1.4.77",
     "react-native-haptic-feedback": "^2.3.3",
     "react-native-image-viewing": "^0.2.2",
     "react-native-image-zoom-viewer": "^3.0.1",
@@ -72,7 +73,8 @@
     "react-native-toast-message": "^2.3.3",
     "react-native-vector-icons": "^10.3.0",
     "router": "^2.1.0",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

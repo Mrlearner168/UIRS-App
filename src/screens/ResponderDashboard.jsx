@@ -31,7 +31,7 @@ const ResponderViewList = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearchFocused, setIsSearchFocused] = useState(false); // NEW: Track search focus
+  const [isSearchFocused, setIsSearchFocused] = useState(false); 
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [resModalVisible, setResModalVisible] = useState(false);
@@ -63,7 +63,6 @@ const ResponderViewList = () => {
     return () => unsubscribe();
   }, []);
 
-  // Enhanced loading animation
   useEffect(() => {
     if (!loading) return;
     const pulseAnim = Animated.loop(
@@ -76,7 +75,6 @@ const ResponderViewList = () => {
     return () => pulseAnim.stop();
   }, [loading, scaleAnim]);
 
-  // Cycle loading tips
   useEffect(() => {
     if (!loading) return;
     const tipInterval = setInterval(() => {
@@ -214,31 +212,91 @@ const ResponderViewList = () => {
     Linking.openURL(`tel:${phoneNumber}`).catch(() => Alert.alert("Error", "Unable to open dialer."));
   };
 
-  const toggleIncidentStatus = async (incidentId, currentStatus, incidentLocation, stationIds) => {
+  const toggleIncidentStatus = async (
+    incidentId,
+    currentStatus,
+    incidentLocation,
+    stationIds
+  ) => {
     try {
       const token = await EncryptedStorage.getItem("token");
-      let newStatus = currentStatus === "alert" ? "ongoing" : currentStatus === "ongoing" ? "done" : null;
-      if (!newStatus) return;
-
-      await axios.put(
+    
+      const nextStatus =
+        currentStatus === "alert" || currentStatus === "pending" || currentStatus === "unassigned"
+          ? "ongoing"
+          : currentStatus === "ongoing"
+          ? "done"
+          : null;
+    
+      if (!nextStatus) return;
+    
+      const response = await axios.put(
         `${SERVER_URL}/update_incident_status/${incidentId}`,
-        { status: newStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          status: nextStatus,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
-      
-      // Update both status properties so the UI reacts immediately
-      setIncidents(prev => prev.map(i => (i.id === incidentId ? { ...i, status: newStatus, responder_status: newStatus } : i)));
-
-      // Automatically navigate to the tracking map when incident transitions to 'ongoing'
-      if (newStatus === "ongoing" && incidentLocation) {
-        navigation.navigate('TrackLocation', { 
-          incidentId: incidentId,
-          incidentLocation: incidentLocation,
-          stationId: stationIds
+    
+      const incidentStatus = response.data.incident_status ?? nextStatus;
+    
+      setIncidents(prev =>
+        prev.map(item => {
+          if (item.id !== incidentId) return item;
+        
+          let responderDetails = [...(item.responder_details || [])];
+        
+          const index = responderDetails.findIndex(
+            r => r.responder_id === user_idF
+          );
+        
+          if (index >= 0) {
+            responderDetails[index] = {
+              ...responderDetails[index],
+              status: incidentStatus,
+            };
+          } else {
+            responderDetails.push({
+              responder_id: user_idF,
+              status: incidentStatus,
+            });
+          }
+        
+          return {
+            ...item,
+            status: incidentStatus,
+            responder_details: responderDetails,
+          };
+        })
+      );
+    
+      setFilterStatus(nextStatus);
+    
+      if (nextStatus === "ongoing" && incidentLocation) {
+        navigation.navigate("TrackLocation", {
+          incidentId,
+          incidentLocation,
+          stationId: stationIds,
         });
       }
-    } catch {
-      Alert.alert("Error", "Unable to update status.");
+    
+      if (nextStatus === "done") {
+        Alert.alert(
+          "Response Complete",
+          "Your responder status is set to DONE. Note that the incident remains active until all other responders complete their task."
+        );
+        fetchIncidentsWithAddresses();
+      }
+    } catch (error) {
+      console.log(error.response?.data || error);
+      Alert.alert(
+        "Update Failed",
+        error.response?.data?.error || "Unable to update status."
+      );
     }
   };
 
@@ -252,17 +310,60 @@ const ResponderViewList = () => {
     const statusMap = {
       deleted: { color: "green", text: "Deleted" },
       assigned: { color: "brown", text: "Assigned" },
-      alert: { color: "red", text: "Alert" },
-      ongoing: { color: "orange", text: "Ongoing" },
+      alert: { color: "red", text: "Start Responding" },
+      pending: { color: "red", text: "Start Responding" },
+      unassigned: { color: "red", text: "Start Responding" },
+      ongoing: { color: "#28a745", text: "Mark My Task Done" },
       done: { color: "green", text: "Done" },
       cancelled: { color: "red", text: "Alert" },
     };
     return statusMap[status] || { color: "gray", text: "Unknown" };
   };
 
-  // ------------------------------------------------------------------
-  // SMART AUTO-SUGGESTION LOGIC (Extracts distinct data from backend list)
-  // ------------------------------------------------------------------
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'done': return '#28a745';
+      case 'ongoing': return '#fd7e14';
+      case 'alert':
+      case 'pending':
+      case 'unassigned': return '#dc3545';
+      case 'declined':
+      case 'cancelled': return '#6c757d';
+      default: return '#007bff';
+    }
+  };
+
+  const getSeverityColor = (severity) => {
+    switch (String(severity).toLowerCase()) {
+      case '5':
+      case 'critical':
+      case 'extreme': return '#8B0000'; 
+      case '4':
+      case 'severe':
+      case 'major': return '#DC3545';
+      case '3':
+      case 'high':
+      case 'moderate': return '#FD7E14';
+      case '2':
+      case 'medium':
+      case 'minor': return '#FFC107'; 
+      case '1':
+      case 'low': return '#28A745'; 
+      default: return '#6C757D'; 
+    }
+  };
+
+  const getSeverityLabel = (severity) => {
+    const severityMap = {
+      1: "Low",
+      2: "Moderate",
+      3: "High",
+      4: "Critical",
+      5: "Extreme",
+    };
+    return severityMap[severity] || "Unknown";
+  };
+
   const searchSuggestions = useMemo(() => {
     if (!searchQuery || !isSearchFocused) return [];
     
@@ -275,14 +376,12 @@ const ResponderViewList = () => {
       const location = incident.readable_location || incident.readableAddress || incident.location || "";
       const reporter = incident.reporter_name || "";
 
-      // Check which field matches and add the exact value to our suggestions list
       if (type.toLowerCase().includes(query)) matches.add(type);
       if (subType.toLowerCase().includes(query) && subType !== 'N/A') matches.add(subType);
       if (reporter.toLowerCase().includes(query)) matches.add(reporter);
       if (location.toLowerCase().includes(query)) matches.add(location);
     });
 
-    // Return the top 5 unique matching phrases
     return Array.from(matches).slice(0, 5); 
   }, [searchQuery, incidents, isSearchFocused]);
 
@@ -305,20 +404,36 @@ const ResponderViewList = () => {
     )
     .filter(incident => {
       if (!filterStatus) return true;
-      if (filterStatus === "done") return incident.responder_status === "done";
-      if (filterStatus === "ongoing") return incident.status === "ongoing" && incident.responder_status !== "done";
-      if (filterStatus === "alert") return incident.status === "alert" && incident.responder_status !== "done";
-      return incident.status === filterStatus;
+      
+      const myDetails = incident.responder_details?.find(r => r.responder_id === user_idF);
+      const myResponderStatus = myDetails ? myDetails.status : incident.responder_status;
+
+      if (filterStatus === "done") return myResponderStatus === "done";
+      if (filterStatus === "ongoing") return myResponderStatus === "ongoing";
+      
+      if (filterStatus === "alert") {
+        return ["alert", "pending", "incoming", "unassigned"].includes(myResponderStatus);
+      }
+      
+      return false;
     })
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
-    [incidents, searchQuery, filterStatus]
+    [incidents, searchQuery, filterStatus, user_idF]
   );
 
   const countByStatus = incidents.reduce(
     (acc, incident) => {
-      if (incident.responder_status === "done") acc.done = (acc.done || 0) + 1;
-      else if (incident.status === "ongoing" && incident.responder_status !== "done") acc.ongoing = (acc.ongoing || 0) + 1;
-      else if (incident.status === "alert" && incident.responder_status !== "done") acc.alert = (acc.alert || 0) + 1;
+      const myDetails = incident.responder_details?.find(r => r.responder_id === user_idF);
+      const myResponderStatus = myDetails ? myDetails.status : incident.responder_status;
+
+      if (myResponderStatus === "done") {
+        acc.done = (acc.done || 0) + 1;
+      } else if (myResponderStatus === "ongoing") {
+        acc.ongoing = (acc.ongoing || 0) + 1;
+      } else if (["alert", "pending", "incoming", "unassigned"].includes(myResponderStatus)) {
+        acc.alert = (acc.alert || 0) + 1;
+      }
+      
       return acc;
     },
     { alert: 0, ongoing: 0, done: 0 }
@@ -342,11 +457,11 @@ const ResponderViewList = () => {
   };
 
   const totalReports = incidents.reduce((sum, i) => sum + (i.report_count || 0), 0);
-
+  
   return (
     <View style={styles.container}>
       
-      {/* IMPROVED SEARCH BAR WITH SUGGESTIONS */}
+      {/* Search Header */}
       <View style={{ zIndex: 10 }}> 
         <View style={styles.searchBoxContainer}>
           <Icon name="magnify" size={24} color="#888" style={styles.searchIcon} />
@@ -357,10 +472,7 @@ const ResponderViewList = () => {
             value={searchQuery}
             onChangeText={setSearchQuery}
             onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => {
-              // Slight delay to allow pressing a suggestion before hiding it
-              setTimeout(() => setIsSearchFocused(false), 200);
-            }}
+            onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearIcon}>
@@ -369,7 +481,6 @@ const ResponderViewList = () => {
           )}
         </View>
 
-        {/* FLOATING SUGGESTIONS LIST */}
         {isSearchFocused && searchSuggestions.length > 0 && (
           <View style={styles.suggestionsContainer}>
             {searchSuggestions.map((item, index) => (
@@ -377,9 +488,9 @@ const ResponderViewList = () => {
                 key={index}
                 style={styles.suggestionItem}
                 onPress={() => {
-                  setSearchQuery(item); // Auto-fill search
-                  setIsSearchFocused(false); // Hide dropdown
-                  Keyboard.dismiss(); // Hide keyboard
+                  setSearchQuery(item); 
+                  setIsSearchFocused(false); 
+                  Keyboard.dismiss(); 
                 }}
               >
                 <Icon name="history" size={18} color="#666" style={{ marginRight: 10 }} />
@@ -391,6 +502,7 @@ const ResponderViewList = () => {
         )}
       </View>
 
+      {/* Filter Tabs */}
       <View style={[styles.filterContainer, { zIndex: 1 }]}>
         {['alert', 'ongoing', 'done'].map((status) => (
           <TouchableOpacity
@@ -435,35 +547,91 @@ const ResponderViewList = () => {
           <FlatList
             data={filteredIncidents}
             keyExtractor={(item, index) => index.toString()}
-            keyboardShouldPersistTaps="handled" // Important for suggestions to work cleanly
+            keyboardShouldPersistTaps="handled" 
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#007bff"]} tintColor="#007bff"/>
             } 
             renderItem={({ item }) => {
               const percentReports = totalReports > 0 ? ((item.report_count || 0) / totalReports * 100).toFixed(0) : 0;
               const currentStation = item.stations?.find((s) => s.station_id === stationId);
-              const currentStationStatus = item.incidents_station_status[stationId]; 
               const stationStatus = currentStation?.status || "unassigned";
+
+              const myDetails = item.responder_details?.find(r => r.responder_id === user_idF);
+              const myResponderStatus = myDetails ? myDetails.status : (item.responder_status || "alert");
+
+              const role = userRole?.toLowerCase();
+              console.log("User Role:", role, "Is Head:", is_head, "My Responder Status:", myResponderStatus, "Station Status:", stationStatus);
+              const hasManagementAccess =
+                role === "responder_head" ||
+                (role === "responder_personnel" && is_head);
+
+              const isResponderPersonnel =
+                role === "responder_personnel" && !is_head;
+
+              const incidentCancelled = item.status === "cancelled";
+              const incidentDone = item.status === "done";
+              const incidentFinished = incidentCancelled || incidentDone;
+
+              const responderDone = myResponderStatus === "done";
+              const responderDeclined = myResponderStatus === "declined";
+              const responderFinished = responderDone || responderDeclined;
 
               return (
                 <TouchableOpacity activeOpacity={0.9}>
-                  <View style={styles.card}>
-                    <Text style={{ fontSize: 16, marginTop: 10, marginBottom: 10 }}>
-                     {t('reportedby')} {item.reporter_name || "Unknown"}
+                  <View style={[styles.card, { borderLeftColor: getSeverityColor(item.severity_level || item.severity) }]}>
+
+                    {/* DUAL STATUS BADGES HEADER */}
+                    <View style={styles.statusHeaderRow}>
+                      
+                      {/* 1. MY RESPONDER STATUS */}
+                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(myResponderStatus) }]}>
+                        <Icon 
+                          name={myResponderStatus === 'done' ? "account-check" : myResponderStatus === 'ongoing' ? "car-emergency" : "bell-ring"} 
+                          size={16} 
+                          color="#fff" 
+                        />
+                        <View style={styles.badgeTextWrapper}>
+                          <Text style={styles.badgeSubtitle}>MY STATUS</Text>
+                          <Text style={styles.badgeMainTitle}>{(myResponderStatus || "unassigned").toUpperCase()}</Text>
+                        </View>
+                      </View>
+
+                      {/* 2. OVERALL INCIDENT STATUS */}
+                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+                        <Icon 
+                          name={item.status === 'done' ? "check-circle" : item.status === 'ongoing' ? "progress-clock" : "alert-rhombus"} 
+                          size={16} 
+                          color="#fff" 
+                        />
+                        <View style={styles.badgeTextWrapper}>
+                          <Text style={styles.badgeSubtitle}>OVERALL INCIDENT</Text>
+                          <Text style={styles.badgeMainTitle}>{(item.status || "unknown").toUpperCase()}</Text>
+                        </View>
+                      </View>
+
+                    </View>
+
+                    {/* Incident Details Section */}
+                    <Text style={{ fontSize: 16, marginTop: 12, marginBottom: 6, fontWeight: 'bold' }}>
+                      {t('reportedby')} {item.reporter_name || "Unknown"}
                     </Text>
+                    
                     <TouchableOpacity onPress={() => openGoogleMaps(item.location)}>
                       <Text style={styles.locationText}>
-                        {t('location')} {item.readable_location || item.readableAddress || item.location}
+                        <Icon name="map-marker-radius" size={16} /> {t('location')} {item.readable_location || item.readableAddress || item.location}
                       </Text>
                     </TouchableOpacity>
-                    <Text>{t('incidenttype')}{item.incidentType}</Text>
+                    <Text>
+                      Severity: {getSeverityLabel(item.severity_level || item.severity)}
+                    </Text>
+                    <Text style={styles.infoLine}><Text style={styles.boldText}>{t('incidenttype')}</Text> {item.incidentType}</Text>
                     {item.incidentType !== "Others" && (
-                      <Text>{t('subtype')} {item.subType || "N/A"}</Text>
+                      <Text style={styles.infoLine}><Text style={styles.boldText}>{t('subtype')}</Text> {item.subType || "N/A"}</Text>
                     )}
                     {item.incidentType === "Others" && (
-                      <Text>{t('description')}{item.incidentDescription}</Text>
+                      <Text style={styles.infoLine}><Text style={styles.boldText}>{t('description')}</Text> {item.incidentDescription}</Text>
                     )}
-                    <Text>{t('time')} {item.incidentTime}</Text>
+                    <Text style={styles.infoLine}><Text style={styles.boldText}>{t('time')}</Text> {item.incidentTime}</Text>
                     <Text style={styles.date}>
                       {t('datereported')}{' '}
                       {new Date(item.created_at).toLocaleDateString('en-US', {
@@ -471,11 +639,12 @@ const ResponderViewList = () => {
                       })}
                     </Text>
                       
-                    <Text>{t('reportcount')} {item.report_count || 0} ({percentReports}%)</Text>
+                    <Text style={styles.infoLine}><Text style={styles.boldText}>{t('reportcount')}</Text> {item.report_count || 0} ({percentReports}%)</Text>
                     <Text style={styles.clickableText} onPress={() => handleDialPhone(item.contactInfo)}>
-                      {t('contact')} {item.contactInfo}
+                      <Icon name="phone" size={14} /> {t('contact')} {item.contactInfo}
                     </Text>
                     
+                    {/* Media Evidence */}
                     <View style={styles.mediaContainer}>
                       <Text style={styles.mediaTitle}>
                         📷 Media Evidence ({item.media?.length || 0} files)
@@ -511,7 +680,7 @@ const ResponderViewList = () => {
                                     source={{ uri: uri }}
                                     style={[styles.image, isLoading && { opacity: 0.5 }]}
                                     contentFit="cover"
-                                    cachePolicy="memory-disk"
+                                    cachePolicy="none"
                                     onLoad={() => handleImageLoad(uri)}
                                     onError={() => handleImageError(uri)}
                                     onLoadStart={() => setImageLoading(uri, true)}
@@ -531,148 +700,317 @@ const ResponderViewList = () => {
                       )}
                     </View>
 
-                    {/* Notice Boxes */}
-                    {(item.status === "ongoing" || item.status === "alert") &&
-                      item.responder_status !== "done" && !is_head && userRole === "responder_personnel" && (
-                      <View style={styles.ongoingNoticeBox}>
-                        <Text style={styles.noticeTitle}>Incident Ongoing</Text>
-                        <Text style={styles.noticeText}>{t('ongoing')}</Text>
-                      </View>
-                    )}
-
-                    {item.status !== "done" && item.responder_status !== "done" &&
-                      stationStatus === "assigned" &&
-                      (userRole === "responder_head" || (userRole === "responder_personnel" && is_head)) 
-                      && (item.user_id === user_idF) && (
-                      <View style={styles.ongoingNoticeBox}>
-                        <Text style={styles.noticeTitle}>Incident Info</Text>
-                        <Text style={styles.noticeText}>{t('ongoinginfo')}</Text>
-                      </View>
-                    )}
-
-                    {item.status === "ongoing" && item.responder_status === "done" && (userRole==="responder_head" || userRole === "responder_personnel") &&(
-                      <View style={styles.ongoingNoticeBox}>
-                        <Text style={styles.noticeTitle}>Incident Ongoing</Text>
-                        <Text style={styles.noticeText}>{t('partialdone')}</Text>
-                      </View>
-                    )}
-
-                    {item.responder_status === "declined" && (userRole==="responder_head" || is_head) && (item.user_id !== user_idF) &&(
-                      <View style={styles.cancelNoticeBox}>
-                        <Text style={styles.noticeTitle}>Incident Declined</Text>
-                        <Text style={styles.noticeText}>{t('accept')}</Text>
-                      </View>
-                    )}
-
-                    {currentStationStatus === "declined" && userRole === "responder_personnel" && !is_head && (item.status !== "done")&& (
-                      <View style={styles.cancelNoticeBox}>
-                        <Text style={styles.noticeTitle}>Incident Declined</Text>
-                        <Text style={styles.noticeText}>{t('stationdecline')}</Text>
-                      </View>
-                    )}
-
-                    {item.status === "alert" && item.responder_status !== "declined" &&
-                      (userRole === "responder_head" || (userRole === "responder_personnel" && is_head)) &&
-                      (item.user_id !== user_idF) && item.incidents_station_status[stationId] !== "unassigned" && (
-                      <TouchableOpacity>
-                        <View style={styles.doneNoticeBox}>
-                          <Text style={styles.noticeTitle}>Incident Alert</Text>
-                          <Text style={styles.noticeText}>{t('resalert')}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
-
-                    {item.status === "alert" && item.responder_status !== "declined" &&
-                      (userRole === "responder_head" || (userRole === "responder_personnel" && is_head)) &&
-                      (item.user_id !== user_idF) && item.incidents_station_status[stationId] === "unassigned" && (
-                      <TouchableOpacity>
-                        <View style={styles.UnnoticeBox}>
-                          <Text style={styles.noticeTitle}>Incident Unnoticed</Text>
-                          <Text style={styles.noticeText}>Incident not acknowledged / Unnotice</Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
-
-                    {item.status === "ongoing" && item.responder_status !== "declined" && 
-                      item.responder_status !== "done" && 
-                      (userRole === "responder_head" || (userRole === "responder_personnel" && is_head))
-                      && (item.user_id !== user_idF) && (
-                      <View style={styles.ongoingNoticeBox}>
-                        <Text style={styles.noticeTitle}>Incident Ongoing</Text>
-                        <Text style={styles.noticeText}>{t('resdone')}</Text>
-                      </View>
-                    )}
+                    {/* Permission Helpers */}
+                    {(() => {
+                      const role = userRole?.toLowerCase();
                     
-                    {item.status === "done" && (
-                      <TouchableOpacity>
-                        <View style={styles.doneNoticeBox}>
-                          <Text style={styles.noticeTitle}>Incident Done</Text>
-                          <Text style={styles.noticeText}>{t('done')}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
-
-                    {item.status === "cancelled" &&  (
-                      <TouchableOpacity>
-                        <View style={styles.cancelNoticeBox}>
-                          <Text style={styles.noticeTitle}>Incident Cancelled</Text>
-                          <Text style={styles.noticeText}>{t('cancelled')}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
+                      const hasManagementAccess =
+                        role === "responder_head" ||
+                        (role === "responder_personnel" && is_head);
                     
-                    {/* Buttons Container */}
-                    <View style={styles.buttonContainer}>
-                      {item.status !== "cancelled" && (
+                      const isResponderPersonnel =
+                        role === "responder_personnel" && !is_head;
+                    
+                      return (
                         <>
-                          <View style={styles.rowButtons}>
-                            {item.status !== "done" && item.responder_status !== "done" && stationStatus === "assigned" && (
-                              <TouchableOpacity
-                                style={[styles.trackButton, styles.equalButtonSize]}
-                                onPress={() => {
-                                  // Auto-transition to 'ongoing' and track if it's currently an 'alert'
-                                  if (item.responder_status === "alert") {
-                                    toggleIncidentStatus(item.id, item.responder_status, item.location, item.station_ids);
-                                  } else {
-                                    navigation.navigate('TrackLocation', { 
-                                      incidentId: item.id,
-                                      incidentLocation: item.location,
-                                      stationId: item.station_ids
-                                    });
-                                  }
+                          {/* ================= ROLE INFORMATION ================= */}
+                          <View
+                            style={{
+                              backgroundColor: hasManagementAccess ? "#e8f4fd" : "#fff8e1",
+                              borderWidth: 1,
+                              borderLeftWidth: 4,
+                              borderColor: hasManagementAccess ? "#b8daff" : "#ffe082",
+                              borderLeftColor: hasManagementAccess ? "#004085" : "#ff8f00",
+                              padding: 12,
+                              borderRadius: 8,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                marginBottom: 4,
+                              }}
+                            >
+                              <Icon
+                                name={hasManagementAccess ? "shield-account" : "account-hard-hat"}
+                                size={20}
+                                color={hasManagementAccess ? "#004085" : "#ff8f00"}
+                              />
+
+                              <Text
+                                style={{
+                                  fontSize: 16,
+                                  fontWeight: "bold",
+                                  color: hasManagementAccess ? "#004085" : "#ff8f00",
+                                  marginLeft: 8,
                                 }}
                               >
-                                <Text style={styles.buttonText}>Track</Text>
-                              </TouchableOpacity>
-                            )}
-
-                            {item.status !== "done" && item.responder_status !== "done" &&
-                              stationStatus === "assigned" &&
-                              (userRole === "responder_head" || (userRole === "responder_personnel" && is_head)) 
-                              && (item.user_id !== user_idF) && (
+                                {role === "responder_head"
+                                  ? "Role: Responder Head"
+                                  : is_head
+                                  ? "Role: Team Leader"
+                                  : "Role: Responder Personnel"}
+                              </Text>
+                            </View>
+                                
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                color: hasManagementAccess ? "#004085" : "#8a6d3b",
+                                lineHeight: 18,
+                              }}
+                            >
+                              {hasManagementAccess
+                                ? "You have full incident management privileges. You can update deployment status, manage responders, monitor deployment, track responder locations, and complete incident operations."
+                                : "You are assigned to assist this incident. You can track locations and support the Team Leader or Responder Head. Incident management actions are restricted."}
+                            </Text>
+                          </View>
+                              
+                          {/* ================= INCIDENT STATUS NOTICE ================= */}
+                          {(() => {
+                            const isHeadActor = hasManagementAccess;
+                            const isStationUnassigned =
+                              item.incidents_station_status?.[stationId] === "unassigned";
+                          
+                            if (item.status === "cancelled") {
+                              return (
+                                <View style={styles.cancelNoticeBox}>
+                                  <View style={styles.noticeHeader}>
+                                    <Icon name="cancel" size={20} color="#721c24" />
+                                    <Text style={[styles.noticeTitle, { color: "#721c24" }]}>
+                                      Incident Cancelled
+                                    </Text>
+                                  </View>
+                              
+                                  <Text style={styles.noticeText}>
+                                    This incident has been cancelled by dispatch. No further action
+                                    is required.
+                                  </Text>
+                                </View>
+                              );
+                            }
+                          
+                            if (
+                              myResponderStatus === "declined" ||
+                              stationStatus === "declined"
+                            ) {
+                              return (
+                                <View style={styles.cancelNoticeBox}>
+                                  <View style={styles.noticeHeader}>
+                                    <Icon
+                                      name="close-circle-outline"
+                                      size={20}
+                                      color="#721c24"
+                                    />
+                                    <Text style={[styles.noticeTitle, { color: "#721c24" }]}>
+                                      Incident Declined
+                                    </Text>
+                                  </View>
+                              
+                                  <Text style={styles.noticeText}>
+                                    {!isHeadActor && stationStatus === "declined"
+                                      ? "Your station declined this dispatch."
+                                      : "You or your station declined this dispatch."}
+                                  </Text>
+                                </View>
+                              );
+                            }
+                          
+                            if (item.status === "done") {
+                              return (
+                                <View style={styles.doneNoticeBox}>
+                                  <View style={styles.noticeHeader}>
+                                    <Icon name="check-all" size={20} color="#155724" />
+                                    <Text style={[styles.noticeTitle, { color: "#155724" }]}>
+                                      Incident Completed
+                                    </Text>
+                                  </View>
+                              
+                                  <Text style={styles.noticeText}>
+                                    All assigned responders have completed their operations. This
+                                    incident has been officially closed.
+                                  </Text>
+                                </View>
+                              );
+                            }
+                          
+                            if (
+                              myResponderStatus === "done" &&
+                              item.status !== "done"
+                            ) {
+                              return (
+                                <View style={styles.partialDoneNoticeBox}>
+                                  <View style={styles.noticeHeader}>
+                                    <Icon
+                                      name="account-check-outline"
+                                      size={20}
+                                      color="#0c5460"
+                                    />
+                                    <Text style={[styles.noticeTitle, { color: "#0c5460" }]}>
+                                      Your Deployment is Complete
+                                    </Text>
+                                  </View>
+                              
+                                  <Text style={styles.noticeText}>
+                                    {isHeadActor
+                                      ? "Your deployment is complete. The incident remains active until all assigned responders finish their operations."
+                                      : "You have completed your assigned task. Please remain available if additional assistance is requested."}
+                                  </Text>
+                                </View>
+                              );
+                            }
+                          
+                            if (
+                              item.status === "alert" ||
+                              ["alert", "pending", "unassigned"].includes(myResponderStatus)
+                            ) {
+                              if (isHeadActor && isStationUnassigned) {
+                                return (
+                                  <View style={styles.UnnoticeBox}>
+                                    <View style={styles.noticeHeader}>
+                                      <Icon
+                                        name="bell-off-outline"
+                                        size={20}
+                                        color="#856404"
+                                      />
+                                      <Text style={styles.UnnoticeTitle}>
+                                        Awaiting Station Acknowledgement
+                                      </Text>
+                                    </View>
+                                
+                                    <Text style={styles.UnnoticeText}>
+                                      Your station has not yet acknowledged this incident. Review
+                                      the dispatch and begin response when ready.
+                                    </Text>
+                                  </View>
+                                );
+                              }
+                            
+                              return (
+                                <View style={styles.alertNoticeBox}>
+                                  <View style={styles.noticeHeader}>
+                                    <Icon
+                                      name="bell-ring-outline"
+                                      size={20}
+                                      color="#721c24"
+                                    />
+                                    <Text style={[styles.noticeTitle, { color: "#721c24" }]}>
+                                      New Incident Assignment
+                                    </Text>
+                                  </View>
+                              
+                                  <Text style={styles.noticeText}>
+                                    {isHeadActor
+                                      ? 'You have been assigned to manage this incident. Select "Start Responding" to begin operations or "Track Location" to navigate to the scene.'
+                                      : 'You have been assigned to assist this incident. Select "Track Location" to navigate to the incident scene and await further instructions.'}
+                                  </Text>
+                                </View>
+                              );
+                            }
+                          
+                            if (
+                              item.status === "ongoing" ||
+                              myResponderStatus === "ongoing"
+                            ) {
+                              return (
+                                <View style={styles.ongoingNoticeBox}>
+                                  <View style={styles.noticeHeader}>
+                                    <Icon
+                                      name="car-emergency"
+                                      size={20}
+                                      color="#856404"
+                                    />
+                                    <Text style={[styles.noticeTitle, { color: "#856404" }]}>
+                                      Active Deployment
+                                    </Text>
+                                  </View>
+                              
+                                  <Text style={styles.noticeText}>
+                                    {isHeadActor
+                                      ? "Incident response is currently active. Coordinate responders, monitor progress, and mark the deployment as completed once operations have concluded."
+                                      : "You are actively deployed to this incident. Follow the instructions of your Team Leader or Responder Head and continue assisting until your assignment is complete."}
+                                  </Text>
+                                </View>
+                              );
+                            }
+                          
+                            return null;
+                          })()}
+                        </>
+                      );
+                    })()}
+                    {/* Action Buttons */}
+                    <View style={styles.buttonContainer}>
+                      {!incidentFinished && (
+                        <>
+                          <View style={styles.rowButtons}>
+                            {/* Track Location */}
+                            {!responderFinished && (
                               <TouchableOpacity
-                                style={[
-                                  styles.statusToggle,
-                                  styles.equalButtonSize,
-                                  { backgroundColor: handleToggleStatus(item.responder_status).color },
-                                ]}
-                                onPress={() => toggleIncidentStatus(item.id, item.responder_status, item.location, item.station_ids)}
+                                style={[styles.trackButton, styles.equalButtonSize]}
+                                onPress={() =>
+                                  navigation.navigate("TrackLocation", {
+                                    incidentId: item.id,
+                                    incidentLocation: item.location,
+                                    stationId: item.station_ids,
+                                  })
+                                }
                               >
                                 <Text style={styles.buttonText}>
-                                  {handleToggleStatus(item.responder_status).text}
+                                  {hasManagementAccess
+                                    ? "Manage / Track Location"
+                                    : "Track Location"}
                                 </Text>
                               </TouchableOpacity>
                             )}
+
+                            {/* Start / Done Button (Management Only) */}
+                            {!responderFinished &&
+                              hasManagementAccess && (
+                                <TouchableOpacity
+                                  style={[
+                                    styles.statusToggle,
+                                    styles.equalButtonSize,
+                                    {
+                                      backgroundColor:
+                                        handleToggleStatus(myResponderStatus).color,
+                                    },
+                                  ]}
+                                  onPress={() =>
+                                    toggleIncidentStatus(
+                                      item.id,
+                                      myResponderStatus,
+                                      item.location,
+                                      item.station_ids
+                                    )
+                                  }
+                                >
+                                  <Text style={styles.buttonText}>
+                                    {handleToggleStatus(myResponderStatus).text}
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
                           </View>
                             
-                          {item.status !== "done" && item.responder_status !== "done" && (
-                            <TouchableOpacity
-                              style={[styles.viewRespondersButton, styles.equalButtonSize, {marginTop: 10}]}
-                              onPress={() => handleViewResponders(item.id)}
-                            >
-                              <Text style={styles.buttonText}>{t('reslist')}</Text>
-                            </TouchableOpacity>
-                          )}
+                          {/* View Responders */}
+                          {!responderFinished &&
+                            item.status !== "done" &&
+                            hasManagementAccess && (
+                              <TouchableOpacity
+                                style={[
+                                  styles.viewRespondersButton,
+                                  styles.equalButtonSize,
+                                  { marginTop: 10 },
+                                ]}
+                                onPress={() => handleViewResponders(item.id)}
+                              >
+                                <Text style={styles.buttonText}>
+                                  {t("reslist") || "View Responders"}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
                         </>
                       )}
                     </View>
@@ -712,10 +1050,9 @@ const ResponderViewList = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 14 ,backgroundColor: "#fff"},
+  container: { flex: 1, padding: 14, backgroundColor: "#fff" },
   heading: { fontSize: 20, fontWeight: "bold", marginBottom: 10, textAlign: "center" },
   
-  // --- UPGRADED SEARCH STYLES ---
   searchBoxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -727,21 +1064,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     height: 48,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: '100%',
-    color: '#000',
-    fontSize: 16,
-  },
-  clearIcon: {
-    padding: 4,
-  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, height: '100%', color: '#000', fontSize: 16 },
+  clearIcon: { padding: 4 },
   suggestionsContainer: {
     position: 'absolute',
-    top: 52, // Right below search bar
+    top: 52, 
     left: 0,
     right: 0,
     backgroundColor: '#fff',
@@ -751,7 +1079,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    zIndex: 999, // Ensure it floats on top of everything
+    zIndex: 999, 
     paddingVertical: 5,
   },
   suggestionItem: {
@@ -762,62 +1090,108 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  suggestionText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
-  },
+  suggestionText: { flex: 1, fontSize: 15, color: '#333' },
   
   filterContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   filterButton: { padding: 8, borderWidth: 1, borderRadius: 5, borderColor: '#ccc' },
   filterButtonActive: { backgroundColor: '#007bff', borderColor: '#007bff' },
   filterText: { color: '#000' },
-  card: { backgroundColor: "#f9f9f9", padding: 14, borderRadius: 16, marginBottom: 18, elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 3, shadowOffset: {width: 0, height: 2} },
+  
+  card: { 
+    backgroundColor: "#f9f9f9", 
+    padding: 14, 
+    borderRadius: 16, 
+    marginBottom: 18, 
+    elevation: 2, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.1, 
+    shadowRadius: 3, 
+    shadowOffset: { width: 0, height: 2 } ,
+    borderLeftWidth: 6,
+    borderLeftColor: '#ccc',
+  },
+  
+  // Dual Status Badges
+  statusHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
+  },
+  statusBadge: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  badgeTextWrapper: {
+    flexDirection: 'column',
+  },
+  badgeSubtitle: {
+    fontSize: 9,
+    color: '#fff',
+    fontWeight: '700',
+    opacity: 0.85,
+    letterSpacing: 0.3,
+  },
+  badgeMainTitle: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+
+  infoLine: { fontSize: 14, marginVertical: 1, color: '#333' },
+  boldText: { fontWeight: '600' },
   clickableText: { color: "blue", textDecorationLine: "underline", marginVertical: 4 },
-  locationText: { color: "#007BFF", textDecorationLine: 'underline', marginBottom: 4 },
-  date: { color: '#666', marginTop: 4 },
+  locationText: { color: "#007BFF", textDecorationLine: 'underline', marginVertical: 4, fontWeight: '500' },
+  date: { color: '#666', marginTop: 2, fontSize: 12 },
   
   mediaContainer: { 
-    marginVertical: 15, backgroundColor: "#fafafa", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: "#e8e8e8"
+    marginVertical: 12, backgroundColor: "#fafafa", padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "#e8e8e8"
   },
-  mediaTitle: { fontSize: 16, fontWeight: "600", color: "#333", marginBottom: 12 },
+  mediaTitle: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 10 },
   mediaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   imageWrapper: { position: "relative", borderRadius: 8, overflow: "hidden", backgroundColor: "#e8e8e8", borderWidth: 2, borderColor: "#d0d0d0" },
   imageErrorWrapper: { borderColor: "#ff6b6b", backgroundColor: "#ffe8e8" },
-  image: { width: 100, height: 100, resizeMode: "cover" }, // Resized slightly so more fit in grid
-  noMediaText: { color: '#888', fontStyle: 'italic' },
+  image: { width: 90, height: 90, resizeMode: "cover" }, 
+  noMediaText: { color: '#888', fontStyle: 'italic', fontSize: 12 },
   
-  // Completed missing styles to prevent crashes
   imageLoadingContainer: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(232, 232, 232, 0.5)'
   },
   imageErrorView: {
-    width: 100, height: 100, justifyContent: 'center', alignItems: 'center'
+    width: 90, height: 90, justifyContent: 'center', alignItems: 'center'
   },
   imageIndex: {
     position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)',
     color: 'white', fontSize: 10, paddingHorizontal: 4, borderRadius: 4, overflow: 'hidden'
   },
 
-  // Notice Boxes
+  // Responder-Focused Notice Boxes
+  noticeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  alertNoticeBox: { backgroundColor: '#f8d7da', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#f5c6cb' },
   ongoingNoticeBox: { backgroundColor: '#fff3cd', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#ffeeba' },
-  cancelNoticeBox: { backgroundColor: '#f8d7da', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#f5c6cb' },
+  partialDoneNoticeBox: { backgroundColor: '#d1ecf1', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#bee5eb' },
+  cancelNoticeBox: { backgroundColor: '#e2e3e5', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#d6d8db' },
   doneNoticeBox: { backgroundColor: '#d4edda', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#c3e6cb' },
-  UnnoticeBox: { backgroundColor: '#e2e3e5', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#d6d8db' },
-  noticeTitle: { fontWeight: 'bold', marginBottom: 4, color: '#333' },
-  noticeText: { color: '#555' },
+  unnoticeBox: { backgroundColor: '#ffeeba', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: '#ffdf7e' },
+  unnoticeTitle: { fontWeight: 'bold', fontSize: 13, color: '#856404' },
+  unnoticeText: { color: '#856404', fontSize: 13, lineHeight: 18 },
+  noticeTitle: { fontWeight: 'bold', fontSize: 13 },
+  noticeText: { color: '#444', fontSize: 13, lineHeight: 18 },
 
-  // Buttons
-  buttonContainer: { marginTop: 15 },
+  buttonContainer: { marginTop: 12 },
   rowButtons: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   equalButtonSize: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   trackButton: { backgroundColor: '#17a2b8' },
-  statusToggle: { backgroundColor: '#6c757d' }, // Color is overridden inline
+  statusToggle: { backgroundColor: '#6c757d' }, 
   viewRespondersButton: { backgroundColor: '#007bff' },
   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 
-  // Loader & Footer
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 },
   loadingIconWrapper: { marginBottom: 20 },
   loadingMainText: { fontSize: 18, fontWeight: 'bold', color: '#333' },

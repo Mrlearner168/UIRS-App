@@ -210,7 +210,9 @@ export default function UpdatesScreen() {
                                         source={{ uri: mediaItem }}
                                         style={styles.image}
                                         contentFit="cover"
-                                        cachePolicy="memory-disk"
+                                        //for production 
+                                        //cachePolicy="memory-disk"
+                                        cachePolicy="none"
                                         onLoad={() => handleImageLoad(mediaItem)}
                                         onError={() => handleImageError(mediaItem)}
                                     />

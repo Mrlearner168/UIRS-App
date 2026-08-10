@@ -477,12 +477,15 @@ function AppInitializer({ initialProps }) {
             status: String(authData.status || ""),
             token: String(authData.token)
           };
+          console.log("AppInitializer: saving auth data to native prefs", dataToSave);
           await SharedPrefModule.saveData(dataToSave);
+          console.log("AppInitializer: native auth handoff completed");
         } else {
+          console.log("AppInitializer: clearing native auth data");
           await SharedPrefModule.clearDataAndStopService();
         }
       } catch (error) {
-        console.error(`Native Handoff Failure: ${error.message}`);
+        console.error(`Native Handoff Failure: ${error?.message || error}`);
       }
     };
     

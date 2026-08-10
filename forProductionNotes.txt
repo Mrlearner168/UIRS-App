@@ -1,0 +1,16 @@
+//First change the ip in env files 
+Assign from the local ip or localhost
+//change the android ip for reports to recive
+in android go to the following :
+ D:\UIRS\frontend\UIRS-V4\android\app\src\main\java\com\rogerskie09\uirsv4\SocketService.kt
+ D:\UIRS\frontend\UIRS-V4\android\app\src\main\java\com\rogerskie09\uirsv4\EmergencyAlertActivity.kt
+
+also the cachedpolicy 
+//cachePolicy="memory-disk"
+in the following files 
+ . adminPanel.jsx
+ . Dashboard.jsx 
+ . NewUserValidataion.jsx
+ . requestScreen.jsx
+ . responderDashboard.jsx
+ . updateScreen.jsx

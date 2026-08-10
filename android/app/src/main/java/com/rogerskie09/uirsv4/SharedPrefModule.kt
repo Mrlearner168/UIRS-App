@@ -1,6 +1,8 @@
 package com.rogerskie09.uirsv4
 
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.facebook.react.bridge.*
 
@@ -9,7 +11,7 @@ class SharedPrefModule(reactContext: ReactApplicationContext) : ReactContextBase
     override fun getName(): String = "SharedPrefModule"
 
     @ReactMethod
-    fun saveData(data: ReadableMap) {
+    fun saveData(data: ReadableMap, promise: Promise) {
         Log.d("SharedPrefModule", "🚀 NATIVE RECEIVE START")
         
         try {
@@ -33,11 +35,34 @@ class SharedPrefModule(reactContext: ReactApplicationContext) : ReactContextBase
                 count++
             }
         
-            editor.apply()
+            val committed = editor.commit()
+            if (!committed) {
+                Log.w("SharedPrefModule", "⚠️ Failed to commit shared preferences synchronously.")
+            }
             Log.d("SharedPrefModule", "✅ Saved $count items.")
-            
+             
+
+            // Ensure the native SocketService is started or restarted once login data is available
+            startSocketService()
+            promise.resolve(true)
+        
         } catch (e: Exception) {
             Log.e("SharedPrefModule", "❌ NATIVE ERROR: ${e.message}")
+            promise.reject("SAVE_ERROR", e.message)
+        }
+    }
+
+    private fun startSocketService() {
+        try {
+            val serviceIntent = Intent(reactApplicationContext, SocketService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                reactApplicationContext.startForegroundService(serviceIntent)
+            } else {
+                reactApplicationContext.startService(serviceIntent)
+            }
+            Log.d("SharedPrefModule", "🔁 SocketService start requested after native auth sync.")
+        } catch (e: Exception) {
+            Log.e("SharedPrefModule", "❌ Error starting SocketService: ${e.message}")
         }
     }
 
@@ -46,8 +71,11 @@ class SharedPrefModule(reactContext: ReactApplicationContext) : ReactContextBase
     fun clearDataAndStopService(promise: Promise) {
         try {
             val sharedPref = reactApplicationContext.getSharedPreferences("MyAppData", Context.MODE_PRIVATE)
-            sharedPref.edit().clear().apply()
+            sharedPref.edit().clear().commit()
             Log.d("SharedPrefModule", "🗑️ Data Cleared")
+
+            val stopIntent = Intent(reactApplicationContext, SocketService::class.java)
+            reactApplicationContext.stopService(stopIntent)
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("CLEAR_ERROR", e.message)

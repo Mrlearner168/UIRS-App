@@ -47,6 +47,7 @@ const AdminPanel = () => {
   const [imageLoadingState, setImageLoadingState] = useState({}); // Track loading state per image
   const [fullImageViewerVisible, setFullImageViewerVisible] = useState(false);
   const pendingRequestsRef = useRef({}); // Prevent duplicate requests
+  const prevIncidentsRef = useRef([]);
   const [fullImageIndex, setFullImageIndex] = useState(0);
   const [loadingIncidentDetails, setLoadingIncidentDetails] = useState({});
   const [initialLoading, setInitialLoading] = useState(true);
@@ -175,11 +176,20 @@ const AdminPanel = () => {
             return { ...incident, readableLocation: readable };
           })
       );
+      
+      // --- FIX: Deduplicate the array by ID before returning it ---
+      const uniqueIncidentsMap = new Map(
+        incidentsWithAddress.map(incident => [incident.id, incident])
+      );
+      const uniqueIncidents = Array.from(uniqueIncidentsMap.values());
+
       //console.log("fetch data:" , JSON.stringify(response.data, null , 2));
-      const textOnly = incidentsWithAddress.map(({ media, ...rest }) => rest);
+      
+      // Use uniqueIncidents for caching and returning
+      const textOnly = uniqueIncidents.map(({ media, ...rest }) => rest);
       await EncryptedStorage.setItem("cached_incidents", JSON.stringify(textOnly));
 
-      return incidentsWithAddress;
+      return uniqueIncidents;
     } catch (err) {
       console.log("Background fetch error:", err);
       return null;
@@ -324,6 +334,40 @@ const AdminPanel = () => {
     setRefreshing(false);
   };
 
+  useEffect(() => {
+    if (!incidents.length) {
+      prevIncidentsRef.current = incidents;
+      return;
+    }
+
+    const previousIncidents = prevIncidentsRef.current;
+    if (!previousIncidents.length) {
+      prevIncidentsRef.current = incidents;
+      return;
+    }
+
+    const changedIncident = incidents.find((incident) => {
+      const previousIncident = previousIncidents.find((item) => item.id === incident.id);
+      return (
+        previousIncident &&
+        previousIncident.status &&
+        incident.status &&
+        previousIncident.status !== incident.status &&
+        ["alert", "ongoing", "done"].includes(previousIncident.status) &&
+        ["alert", "ongoing", "done"].includes(incident.status)
+      );
+    });
+
+    if (changedIncident) {
+      const previousIncident = previousIncidents.find((item) => item.id === changedIncident.id);
+      if (previousIncident && statusFilter === previousIncident.status) {
+        setStatusFilter(changedIncident.status);
+      }
+    }
+
+    prevIncidentsRef.current = incidents;
+  }, [incidents, statusFilter]);
+
   const openGoogleMaps = (location) => {
     const encodedLocation = encodeURIComponent(location);
     const url = `https://www.google.com/maps/dir/?api=1&destination=${encodedLocation}`;
@@ -340,6 +384,49 @@ const AdminPanel = () => {
     return statusMap[status] || { color: "gray", text: "Unknown" };
   };
 
+  const getSeverityLabel = (severity) => {
+    const severityMap = {
+      1: "Low",
+      2: "Moderate",
+      3: "High",
+      4: "Critical",
+      5: "Extreme",
+    };
+
+    return severityMap[severity] || "Unknown";
+  };
+
+  const getSeverityColor = (severity) => {
+    // Cast to a lowercase string to safely match both numbers and text
+    switch (String(severity).toLowerCase()) {
+      case '5':
+      case 'critical':
+      case 'extreme':
+        return '#8B0000'; // Dark Red - Highest urgency
+
+      case '4':
+      case 'severe':
+      case 'major':
+        return '#DC3545'; // Bright Red
+
+      case '3':
+      case 'high':
+      case 'moderate':
+        return '#FD7E14'; // Orange
+
+      case '2':
+      case 'medium':
+      case 'minor':
+        return '#FFC107'; // Yellow
+
+      case '1':
+      case 'low':
+        return '#28A745'; // Green - Lowest urgency
+
+      default:
+        return '#6C757D'; // Gray - Fallback for missing/unknown data
+    }
+  };
   // Compute counts
   const statusCounts = {
     alert: incidents.filter(i => i.status === 'alert').length,
@@ -347,6 +434,7 @@ const AdminPanel = () => {
     done: incidents.filter(i => i.status === 'done').length,
     all: incidents.length
   };
+  
   //console.log("All Incidents:", JSON.stringify(incidents, null, 2));
   const filteredIncidents = incidents.filter(
     (incident) =>
@@ -429,12 +517,14 @@ const AdminPanel = () => {
         <Text style={styles.noReportsText}>No reports found</Text>
       ) : (
         <FlatList
-          data={filteredIncidents.sort(
+          // --- FIX: Added [... ] array spread to prevent mutating state while sorting ---
+          data={[...filteredIncidents].sort(
             (a, b) => new Date(b.created_at) - new Date(a.created_at)
           )}
-          keyExtractor={(item, index) => index.toString()}
+          // --- FIX: Using actual item.id as key to prevent duplication errors ---
+          keyExtractor={(item) => item.id ? item.id.toString() : Math.random().toString()}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <View style={[styles.card,{borderLeftColor: getSeverityColor(item.severity)}]}>
               {item.status === "alert" && (
                 <TouchableOpacity>
                   <View style={styles.cancelNoticeBox}>
@@ -448,6 +538,9 @@ const AdminPanel = () => {
               <Text style={{ fontSize: 16, marginTop: 10, marginBottom: 10 }}>
                 {t('reportedby')} {item.reporter_name || "Unknown"}
               </Text>
+               <Text>
+                 Severity : {getSeverityLabel(item.severity)}
+                </Text>
               <TouchableOpacity onPress={() => openGoogleMaps(item.location)}>
                 <Text style={styles.locationText}>
                   {t('location')} {item.readable_location || item.readableLocation || item.location}
@@ -469,6 +562,7 @@ const AdminPanel = () => {
                   weekday: 'long',
                   year: 'numeric',
                 })}
+                
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -523,13 +617,16 @@ const AdminPanel = () => {
                     style={styles.pickerBox}
                     onPress={() => setPickerVisibleIncidentId(item.id)}
                   >
-                    <Text style={{ color: "#000" }}>
-                      {(item.selectedStation &&
-                        item.stations.find(st => st.station_id_str === item.selectedStation)?.station_name) ||
-                        item.stations.find(st => st.status === "assigned")?.station_name ||
-                        t('pending')}
-                    </Text>
-                    <Icon name="arrow-drop-down" size={24} color="#555" />
+                    {/* --- FIX: Wrapped the text and icon in a single parent View --- */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                      <Text style={{ color: "#000", flex: 1 }}>
+                        {(item.selectedStation &&
+                          item.stations.find(st => st.station_id_str === item.selectedStation)?.station_name) ||
+                          item.stations.find(st => st.status === "assigned")?.station_name ||
+                          t('pending')}
+                      </Text>
+                      <Icon name="arrow-drop-down" size={24} color="#555" />
+                    </View>
                   </TouchableOpacity>
                       
                   <Modal
@@ -559,9 +656,9 @@ const AdminPanel = () => {
                         {item.stations.filter(st => st.status === "assigned").length > 0 ? (
                           item.stations
                             .filter(st => st.status === "assigned")
-                            .map((st) => (
+                            .map((st,index ) => (
                               <TouchableOpacity
-                                key={st.station_id_str}
+                                key={`${st.station_id_str}-${index}`}
                                 style={{
                                   paddingVertical: 12,
                                   paddingHorizontal: 16,
@@ -589,11 +686,14 @@ const AdminPanel = () => {
                   </Modal>
                       
                   {/* Selected Station Details */}
-                  {(item.selectedStation ||
-                    item.stations.find(st => st.status === "assigned")) && (() => {
+                  {/* --- FIX: Removed the buggy '&&' condition outside the IIFE --- */}
+                  {(() => {
                     const selectedId =
                       item.selectedStation ||
                       item.stations.find(st => st.status === "assigned")?.station_id_str;
+                    
+                    if (!selectedId) return null; // Added safety check here instead
+                    
                     const selected = item.stations.find(st => st.station_id_str === selectedId);
                     if (!selected) return null;
                     
@@ -685,29 +785,33 @@ const AdminPanel = () => {
                           }}
                           disabled={isError}
                         >
-                          {isLoading && (
-                            <View style={styles.imageLoadingContainer}>
-                              <ActivityIndicator size="large" color="#007BFF" />
-                              <Text style={styles.loadingText}>Loading...</Text>
-                            </View>
-                          )}
-                          {!isError ? (
-                            <ExpoImage
-                              source={{ uri: mediaItem }}
-                              style={[styles.image, isLoading && { opacity: 0.5 }]}
-                              contentFit="cover"
-                              cachePolicy="memory-disk"
-                              onLoad={() => handleImageLoad(mediaItem)}
-                              onError={() => handleImageError(mediaItem)}
-                              onLoadStart={() => setImageLoading(mediaItem, true)}
-                            />
-                          ) : (
-                            <View style={styles.imageErrorView}>
-                              <Icon name="broken-image" size={40} color="#999" />
-                              <Text style={styles.imageErrorText}>Failed to load</Text>
-                            </View>
-                          )}
-                          <Text style={styles.imageIndex}>{index + 1}</Text>
+                          {/* --- FIX: Wrapped the Image loading/error states and index text in a single View --- */}
+                          <View style={{ flex: 1, width: '100%', height: '100%' }}>
+                            {isLoading && (
+                              <View style={styles.imageLoadingContainer}>
+                                <ActivityIndicator size="large" color="#007BFF" />
+                                <Text style={styles.loadingText}>Loading...</Text>
+                              </View>
+                            )}
+                            {!isError ? (
+                              <ExpoImage
+                                source={{ uri: mediaItem }}
+                                style={[styles.image, isLoading && { opacity: 0.5 }]}
+                                contentFit="cover"
+                                //cachePolicy="memory-disk"
+                                cachePolicy="none"
+                                onLoad={() => handleImageLoad(mediaItem)}
+                                onError={() => handleImageError(mediaItem)}
+                                onLoadStart={() => setImageLoading(mediaItem, true)}
+                              />
+                            ) : (
+                              <View style={styles.imageErrorView}>
+                                <Icon name="broken-image" size={40} color="#999" />
+                                <Text style={styles.imageErrorText}>Failed to load</Text>
+                              </View>
+                            )}
+                            <Text style={styles.imageIndex}>{index + 1}</Text>
+                          </View>
                         </TouchableOpacity>
                       );
                     })}
@@ -825,13 +929,21 @@ const styles = StyleSheet.create({
     borderRadius: 10, 
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    
+    // REPLACE borderColor WITH THESE THREE LINES:
+    borderTopColor: "#e0e0e0",
+    borderRightColor: "#e0e0e0",
+    borderBottomColor: "#e0e0e0",
+    
+    borderLeftWidth: 6, 
+    borderLeftColor: '#ccc', // Fallback color
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3
+    elevation: 3, 
   },
+
   mediaContainer: { 
     marginVertical: 15,
     backgroundColor: "#fafafa",
